@@ -194,6 +194,7 @@
       <label>Regels & stem</label>
       <div class="switch"><span>Dubbel-uit (finish op dubbel)</span><div class="toggle on" id="tgDoubleOut"></div></div>
       <div class="switch"><span>Stem voorlezen</span><div class="toggle on" id="tgVoice"></div></div>
+      <div class="switch"><span>Geluidseffecten (tok, fanfare, juich)</span><div class="toggle on" id="tgSfx"></div></div>
       <div class="switch"><span>Elke pijl uitspreken</span><div class="toggle" id="tgPerDart"></div></div>
     </div>
     <div class="field">
@@ -202,7 +203,7 @@
       <div style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.55">
         💡 Voor een <b>realistische stem</b> op iPhone: Instellingen → Toegankelijkheid → Gesproken materiaal → Stemmen → Nederlands → download een <b>Verbeterd/Premium</b> stem (bijv. Xander). Herlaad daarna deze app en kies de ⭐-stem hierboven.
       </div>
-      <button class="btn ghost" id="testVoice" style="width:100%; margin-top:8px;">🔊 Test stem</button>
+      <button class="btn ghost" id="testVoice" style="width:100%; margin-top:8px;">🎉 Test geluid & stem</button>
     </div>
     <button class="btn primary" id="startGameBtn" style="width:100%">Nieuw spel starten</button>
     <button class="btn ghost" id="closeSettings" style="width:100%; margin-top:8px;">Sluiten</button>
@@ -329,17 +330,64 @@ function speak(text){
     if(chosenVoice) u.voice=chosenVoice; window.speechSynthesis.speak(u);
   }catch(e){}
 }
+function speakFX(text, opts){
+  if(!settings.voice || !window.speechSynthesis) return; opts=opts||{};
+  try{ if(!opts.queue) window.speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(text); u.lang='nl-NL';
+    u.rate=opts.rate||1.0; u.pitch=(opts.pitch!=null?opts.pitch:1.0);
+    if(chosenVoice) u.voice=chosenVoice; window.speechSynthesis.speak(u);
+  }catch(e){}
+}
+function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
+
+/* ---------- Sound effects (Web Audio, offline) ---------- */
+let AC=null, MASTER=null;
+function ac(){ if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)();
+  MASTER=AC.createGain(); MASTER.gain.value=0.85; MASTER.connect(AC.destination); }catch(e){ return null; } }
+  if(AC && AC.state==='suspended'){ try{ AC.resume(); }catch(e){} } return AC; }
+function tone(freq,t0,dur,type,peak){ const c=ac(); if(!c) return; const o=c.createOscillator(),g=c.createGain();
+  o.type=type||'sine'; o.frequency.setValueAtTime(freq,c.currentTime+t0);
+  g.gain.setValueAtTime(0.0001,c.currentTime+t0); g.gain.exponentialRampToValueAtTime(peak||0.2,c.currentTime+t0+0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001,c.currentTime+t0+dur);
+  o.connect(g).connect(MASTER); o.start(c.currentTime+t0); o.stop(c.currentTime+t0+dur+0.03); }
+function slide(f1,f2,t0,dur,type,peak){ const c=ac(); if(!c) return; const o=c.createOscillator(),g=c.createGain();
+  o.type=type||'sawtooth'; o.frequency.setValueAtTime(f1,c.currentTime+t0); o.frequency.exponentialRampToValueAtTime(f2,c.currentTime+t0+dur);
+  g.gain.setValueAtTime(0.0001,c.currentTime+t0); g.gain.exponentialRampToValueAtTime(peak||0.2,c.currentTime+t0+0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001,c.currentTime+t0+dur);
+  o.connect(g).connect(MASTER); o.start(c.currentTime+t0); o.stop(c.currentTime+t0+dur+0.03); }
+function noiseBurst(t0,dur,peak,freq,ftype){ const c=ac(); if(!c) return;
+  const n=Math.max(1,Math.floor(c.sampleRate*dur)), buf=c.createBuffer(1,n,c.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<n;i++) d[i]=Math.random()*2-1;
+  const src=c.createBufferSource(); src.buffer=buf;
+  const f=c.createBiquadFilter(); f.type=ftype||'lowpass'; f.frequency.value=freq||1500; f.Q.value=0.7;
+  const g=c.createGain(); g.gain.setValueAtTime(0.0001,c.currentTime+t0);
+  g.gain.linearRampToValueAtTime(peak||0.2,c.currentTime+t0+dur*0.25);
+  g.gain.exponentialRampToValueAtTime(0.0001,c.currentTime+t0+dur);
+  src.connect(f).connect(g).connect(MASTER); src.start(c.currentTime+t0); src.stop(c.currentTime+t0+dur+0.05); }
+function cheer(t0,dur,peak){ noiseBurst(t0,dur,peak,1300,'bandpass'); }
+function arp(notes,t0,step,type,peak){ notes.forEach((f,i)=>tone(f,t0+i*step,step*1.4,type,peak)); }
+function sfxHit(){ if(!settings.sfx) return; noiseBurst(0,0.05,0.16,1900,'lowpass'); tone(90,0,0.09,'sine',0.12); }
+function sfxReward(kind){ if(!settings.sfx) return;
+  if(kind==='triple') arp([660,880,1320],0,0.075,'triangle',0.16);
+  else if(kind==='double') arp([660,990],0,0.08,'triangle',0.15);
+  else if(kind==='bull'){ arp([880,1320,1760],0,0.07,'triangle',0.16); cheer(0.05,0.25,0.1); } }
+function sfxTon(){ if(!settings.sfx) return; arp([523,784],0,0.1,'triangle',0.2); cheer(0.05,0.3,0.12); }
+function sfxBig(){ if(!settings.sfx) return; arp([523,659,880],0,0.1,'triangle',0.22); cheer(0.05,0.45,0.16); }
+function sfx180(){ if(!settings.sfx) return; arp([523,659,784,1047],0,0.12,'triangle',0.24); tone(1568,0.5,0.35,'triangle',0.22); cheer(0.1,0.9,0.2); }
+function sfxWin(){ if(!settings.sfx) return; arp([523,659,784,1047,1319],0,0.13,'square',0.2); tone(1047,0.7,0.5,'triangle',0.22); cheer(0.15,1.2,0.22); }
+function sfxBust(){ if(!settings.sfx) return; slide(400,120,0,0.42,'sawtooth',0.22); noiseBurst(0,0.3,0.08,600,'lowpass'); }
 
 /* ---------- Settings + stats persistence ---------- */
-let settings={ start:501, doubleOut:true, voice:true, perDart:false, players:['Speler 1','Speler 2'], _voiceName:null };
+let settings={ start:501, doubleOut:true, voice:true, sfx:true, perDart:false, players:['Speler 1','Speler 2'], _voiceName:null };
 function saveSettings(){ try{ localStorage.setItem('dartteller', JSON.stringify({
-  start:settings.start, doubleOut:settings.doubleOut, voice:settings.voice, perDart:settings.perDart,
+  start:settings.start, doubleOut:settings.doubleOut, voice:settings.voice, sfx:settings.sfx, perDart:settings.perDart,
   players:settings.players, voiceName: chosenVoice?chosenVoice.name:settings._voiceName })); }catch(e){} }
 function loadSettings(){ try{ const s=JSON.parse(localStorage.getItem('dartteller')); if(!s) return;
   if(Array.isArray(s.players)&&s.players.length) settings.players=s.players;
   if(typeof s.start==='number') settings.start=s.start;
   if(typeof s.doubleOut==='boolean') settings.doubleOut=s.doubleOut;
   if(typeof s.voice==='boolean') settings.voice=s.voice;
+  if(typeof s.sfx==='boolean') settings.sfx=s.sfx;
   if(typeof s.perDart==='boolean') settings.perDart=s.perDart;
   settings._voiceName=s.voiceName||null;
 }catch(e){} }
@@ -395,6 +443,8 @@ function throwDart(hit, x, y){
   p.darts++;
   recordDart(p.name, hit, x??null, y??null);
   if(x!=null) addMarker(x,y);
+  sfxHit();
+  if(hit.value>0){ if(hit.label[0]==='T') sfxReward('triple'); else if(hit.value===50) sfxReward('bull'); else if(hit.isDouble) sfxReward('double'); }
   if(settings.perDart && hit.value>=0) speak(hit.speak);
 
   const newScore=p.score - hit.value;
@@ -405,29 +455,36 @@ function throwDart(hit, x, y){
   if(win){
     p.score=0; p.finished=true; G.finishers++; p.place=G.finishers;
     recordTurn(p.name, G.turnStart); saveStats(); render();
-    bigCall('GAME SHOT!'); speak('game shot! Gewonnen, '+p.name); confettiBurst(180);
+    bigCall('GAME SHOT!'); sfxWin();
+    speakFX(pick(['Game shot! ','Game, set en match! ','Uitgegooid! '])+'Gewonnen door '+p.name+'!',{pitch:1.2}); confettiBurst(180);
     if(activePlayers()<=1) G.over=true;
     transition=true; pendingTimer=setTimeout(()=>{ transition=false; if(!G.over) advance(true); render(); }, 2000);
     return;
   }
   if(bust){
     p.score=G.turnStart; G.thrown.forEach(d=>d.bust=true); saveStats(); render();
-    bigCall('BUST'); speak('bust');
-    transition=true; pendingTimer=setTimeout(()=>{ transition=false; advance(true); render(); }, 1400);
+    bigCall('BUST'); sfxBust(); speakFX(pick(['Bust!','Helaas, bust!','Bust, jammer!']),{pitch:0.92});
+    transition=true; pendingTimer=setTimeout(()=>{ transition=false; advance(true); render(); announceNext(); }, 1400);
     return;
   }
   p.score=newScore;
   if(G.thrown.length>=3){
     const total=G.turnStart - p.score; recordTurn(p.name, total); saveStats(); render();
     announceTurn(total);
-    transition=true; pendingTimer=setTimeout(()=>{ transition=false; advance(true); render(); }, 1500);
+    transition=true; pendingTimer=setTimeout(()=>{ transition=false; advance(true); render(); announceNext(); }, 1500);
   } else render();
 }
+const REACT_HI=['geweldig! ','top! ','wat een worp! ','fantastisch! ','ongelofelijk! '];
+const REACT_TON=['ton! ','mooie score! ','lekker bezig! ','netjes! '];
 function announceTurn(total){
-  if(total===180){ bigCall('180!'); speak('honderdtachtig!'); confettiBurst(140); }
-  else if(total>=100){ bigCall(total+'!'); speak(nlNum(total)); }
-  else speak(total===0?'geen score':nlNum(total));
+  if(total===180){ bigCall('180!'); sfx180(); confettiBurst(150); speakFX('honderd... tachtig!',{pitch:1.35}); }
+  else if(total>=140){ bigCall(total+'!'); sfxBig(); confettiBurst(60); speakFX(pick(REACT_HI)+nlNum(total),{pitch:1.22,rate:1.03}); }
+  else if(total>=100){ bigCall(total+'!'); sfxTon(); speakFX(pick(REACT_TON)+nlNum(total),{pitch:1.12}); }
+  else if(total===0){ speakFX(pick(['geen score','helaas, nul','jammer, niks']),{pitch:0.95}); }
+  else { speakFX(nlNum(total),{pitch: total>=60?1.08:1.0}); }
 }
+function announceNext(){ if(G.over) return; const nm=G.players[G.cur].name;
+  speakFX(pick([nm+', jouw beurt',nm+', gooien maar',nm]),{queue:true, pitch:1.05, rate:1.03}); }
 function activePlayers(){ return G.players.filter(p=>!p.finished).length; }
 function advance(clear){
   if(clear) clearMarkers(); G.thrown=[]; if(G.over) return;
@@ -437,9 +494,9 @@ function advance(clear){
 }
 function manualNext(){
   if(G.over||transition) return;
-  if(G.thrown.length===0){ advance(true); render(); return; }
+  if(G.thrown.length===0){ advance(true); render(); announceNext(); return; }
   pushUndo(); const p=G.players[G.cur], total=G.turnStart - p.score;
-  recordTurn(p.name, total); saveStats(); announceTurn(total); advance(true); render();
+  recordTurn(p.name, total); saveStats(); announceTurn(total); advance(true); render(); announceNext();
 }
 
 /* ---------- Render ---------- */
@@ -584,7 +641,8 @@ function openSettings(){ syncSettingsUI(); settingsOverlay.classList.add('show')
 function closeSettings(){ settingsOverlay.classList.remove('show'); }
 function syncSettingsUI(){
   document.querySelectorAll('#startScoreChips .chip').forEach(ch=>ch.classList.toggle('on', +ch.dataset.v===settings.start));
-  setToggle('tgDoubleOut',settings.doubleOut); setToggle('tgVoice',settings.voice); setToggle('tgPerDart',settings.perDart);
+  setToggle('tgDoubleOut',settings.doubleOut); setToggle('tgVoice',settings.voice);
+  setToggle('tgSfx',settings.sfx); setToggle('tgPerDart',settings.perDart);
   renderPlayersEdit();
 }
 function setToggle(id,on){ document.getElementById(id).classList.toggle('on',on); }
@@ -614,15 +672,18 @@ document.getElementById('voiceBtn').addEventListener('click',()=>{ settings.voic
   document.getElementById('voiceBtn').textContent=settings.voice?'🔊':'🔇'; if(settings.voice) speak('stem aan'); saveSettings(); });
 document.getElementById('startScoreChips').addEventListener('click',e=>{ const ch=e.target.closest('.chip'); if(!ch) return;
   settings.start=+ch.dataset.v; syncSettingsUI(); saveSettings(); });
-['tgDoubleOut','tgVoice','tgPerDart'].forEach(id=>{ document.getElementById(id).addEventListener('click',()=>{
-  const key = id==='tgDoubleOut'?'doubleOut': id==='tgVoice'?'voice':'perDart';
+['tgDoubleOut','tgVoice','tgSfx','tgPerDart'].forEach(id=>{ document.getElementById(id).addEventListener('click',()=>{
+  const key = id==='tgDoubleOut'?'doubleOut': id==='tgVoice'?'voice': id==='tgSfx'?'sfx':'perDart';
   settings[key]=!settings[key]; setToggle(id,settings[key]);
-  document.getElementById('voiceBtn').textContent=settings.voice?'🔊':'🔇'; saveSettings(); }); });
+  document.getElementById('voiceBtn').textContent=settings.voice?'🔊':'🔇'; saveSettings();
+  if(id==='tgSfx' && settings.sfx) sfxReward('triple'); }); });
 document.getElementById('addPlayer').addEventListener('click',()=>{ settings.players.push('Speler '+(settings.players.length+1)); renderPlayersEdit(); saveSettings(); });
 document.getElementById('voiceSelect').addEventListener('change',e=>{ chosenVoice=voices[+e.target.value]||null; saveSettings(); });
-document.getElementById('testVoice').addEventListener('click',()=>{ const on=settings.voice; settings.voice=true; speak('honderdtachtig! game shot.'); settings.voice=on; });
+document.getElementById('testVoice').addEventListener('click',()=>{ const v=settings.voice, s=settings.sfx; settings.voice=true; settings.sfx=true;
+  bigCall('180!'); sfx180(); confettiBurst(80); speakFX('honderd... tachtig!',{pitch:1.35}); settings.voice=v; settings.sfx=s; });
 document.getElementById('startGameBtn').addEventListener('click',()=>{ settings.players=settings.players.map(n=>n.trim()).filter(n=>n.length);
-  if(!settings.players.length) settings.players=['Speler 1']; saveSettings(); closeSettings(); newGame(); speak('nieuw spel, '+settings.players[0]+' begint'); });
+  if(!settings.players.length) settings.players=['Speler 1']; saveSettings(); closeSettings(); newGame();
+  sfxTon(); speakFX('nieuw spel! '+settings.players[0]+', jij begint.',{pitch:1.1,rate:1.02}); });
 settingsOverlay.addEventListener('click',e=>{ if(e.target===settingsOverlay) closeSettings(); });
 statsOverlay.addEventListener('click',e=>{ if(e.target===statsOverlay) closeStats(); });
 
