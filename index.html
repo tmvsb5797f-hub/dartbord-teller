@@ -28,9 +28,7 @@
     padding:calc(6px + env(safe-area-inset-top)) calc(11px + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) calc(11px + env(safe-area-inset-left));}
   header{display:flex; align-items:center; justify-content:space-between; margin:0 0 7px;}
   .brand{display:flex; align-items:center; gap:9px; font-weight:800; letter-spacing:.3px; font-size:19px;}
-  .brand .dot{width:24px;height:24px;border-radius:50%;
-    background:conic-gradient(var(--red) 0 25%, var(--green) 25% 50%, var(--red) 50% 75%, var(--green) 75% 100%);
-    box-shadow:inset 0 0 0 4px #111, 0 0 0 2px #444;}
+  .brand .logo{width:30px;height:30px;border-radius:9px;display:block;box-shadow:0 2px 8px rgba(0,0,0,.4);}
   .iconbtn{background:var(--card); border:1px solid var(--line); color:var(--txt);
     width:40px;height:40px;border-radius:13px; font-size:17px; display:flex;align-items:center;justify-content:center; cursor:pointer; transition:.15s;}
   .iconbtn:active{transform:scale(.94); background:var(--card2);}
@@ -90,6 +88,8 @@
   .pcard .a{font-size:10px; color:var(--muted);}
   .pcard .lg{font-size:11px; color:var(--gold); font-weight:800; margin-top:2px;}
   .foot{text-align:center; color:var(--muted); font-size:11px; margin-top:9px;}
+  .credit{text-align:center; color:#5c6390; font-size:10px; margin-top:3px; letter-spacing:.3px;}
+  .credit b{color:#8891c4; font-weight:700;}
 
   /* Modal */
   .overlay{position:fixed; inset:0; background:rgba(5,7,20,.72); backdrop-filter:blur(6px);
@@ -145,7 +145,7 @@
 <body>
 <div class="app">
   <header>
-    <div class="brand"><span class="dot"></span> Dart Teller</div>
+    <div class="brand"><img class="logo" id="logo" alt="Dart Teller logo"/> Dart Teller</div>
     <div class="row">
       <button class="iconbtn" id="statsBtn" title="Statistieken & tips">📊</button>
       <button class="iconbtn" id="voiceBtn" title="Stem aan/uit">🔊</button>
@@ -179,6 +179,7 @@
 
   <div class="strip" id="strip"></div>
   <div class="foot">X01 · dubbel-uit · Nederlandse stem · werkt offline</div>
+  <div class="credit">made by <b>Sem</b> 🎯</div>
 </div>
 
 <div id="bigcall"></div>
@@ -836,10 +837,38 @@ document.getElementById('startGameBtn').addEventListener('click',()=>{ settings.
 settingsOverlay.addEventListener('click',e=>{ if(e.target===settingsOverlay) closeSettings(); });
 statsOverlay.addEventListener('click',e=>{ if(e.target===statsOverlay) closeStats(); });
 
+/* ---------- Logo / app icon ---------- */
+function roundRect(c,x,y,w,h,r){ c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
+function makeLogo(size){
+  const cv=document.createElement('canvas'); cv.width=size; cv.height=size; const c=cv.getContext('2d');
+  const bg=c.createLinearGradient(0,0,size,size); bg.addColorStop(0,'#2b3468'); bg.addColorStop(1,'#0e1124');
+  roundRect(c,0,0,size,size,size*0.22); c.fillStyle=bg; c.fill();
+  const R=size*0.32, s=R/R_DBL_OUT, cx=size*0.45, cy=size*0.55;
+  c.save(); c.translate(cx-250*s, cy-250*s); c.scale(s,s);
+  c.beginPath(); c.arc(250,250,R_DBL_OUT+7,0,Math.PI*2); c.fillStyle='#0c0e1e'; c.fill();
+  for(let i=0;i<20;i++){ const a1=i*18-9,a2=i*18+9,dark=(i%2===0),single=dark?COL.black:COL.cream,ring=dark?COL.red:COL.green;
+    canvSector(c,R_TRI_OUT,R_DBL_IN,a1,a2,single); canvSector(c,R_DBL_IN,R_DBL_OUT,a1,a2,ring);
+    canvSector(c,R_TRI_IN,R_TRI_OUT,a1,a2,ring); canvSector(c,R_OBULL,R_TRI_IN,a1,a2,single); }
+  c.beginPath(); c.arc(250,250,R_OBULL,0,Math.PI*2); c.fillStyle=COL.green; c.fill();
+  c.beginPath(); c.arc(250,250,R_BULL,0,Math.PI*2); c.fillStyle=COL.red; c.fill();
+  c.restore();
+  const tip={x:cx,y:cy}, tail={x:size*0.9,y:size*0.12}, L=t=>({x:tip.x+(tail.x-tip.x)*t,y:tip.y+(tail.y-tip.y)*t});
+  const pB=L(0.6), pC=L(0.8); c.lineCap='round';
+  c.strokeStyle='#8a90a8'; c.lineWidth=size*0.028; c.beginPath(); c.moveTo(tip.x,tip.y); c.lineTo(L(0.14).x,L(0.14).y); c.stroke();
+  c.strokeStyle='#e2e6f0'; c.lineWidth=size*0.055; c.beginPath(); c.moveTo(L(0.14).x,L(0.14).y); c.lineTo(pB.x,pB.y); c.stroke();
+  c.strokeStyle='#aeb4cc'; c.lineWidth=size*0.03; c.beginPath(); c.moveTo(pB.x,pB.y); c.lineTo(pC.x,pC.y); c.stroke();
+  const dx=tail.x-pC.x, dy=tail.y-pC.y, Ln=Math.hypot(dx,dy)||1, px=-dy/Ln, py=dx/Ln, w=size*0.075, mid=L(0.9);
+  c.fillStyle='#ff5a4d'; c.beginPath(); c.moveTo(pC.x,pC.y); c.lineTo(mid.x+px*w,mid.y+py*w); c.lineTo(tail.x,tail.y); c.lineTo(mid.x-px*w,mid.y-py*w); c.closePath(); c.fill();
+  c.strokeStyle='rgba(0,0,0,.28)'; c.lineWidth=size*0.008; c.beginPath(); c.moveTo(pC.x,pC.y); c.lineTo(tail.x,tail.y); c.stroke();
+  return cv.toDataURL('image/png');
+}
+function setIcon(rel,href){ let l=document.querySelector('link[rel="'+rel+'"]'); if(!l){ l=document.createElement('link'); l.rel=rel; document.head.appendChild(l); } l.href=href; }
+function setupLogo(){ try{ const url=makeLogo(180); const el=document.getElementById('logo'); if(el) el.src=url; setIcon('icon',url); setIcon('apple-touch-icon',url); }catch(e){} }
+
 /* ---------- Init ---------- */
 loadSettings(); loadStats();
 document.getElementById('voiceBtn').textContent=settings.voice?'🔊':'🔇';
-buildBoard();
+buildBoard(); setupLogo();
 if(window.speechSynthesis){ loadVoices(); window.speechSynthesis.onvoiceschanged=loadVoices; }
 newGame();
 </script>
