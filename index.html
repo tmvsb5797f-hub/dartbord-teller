@@ -119,6 +119,9 @@
   .heatwrap{display:flex; justify-content:center; margin-bottom:6px;}
   #heatCanvas{width:280px; height:280px; max-width:100%; border-radius:12px;}
   .heatcap{text-align:center; font-size:11px; color:var(--muted); margin-bottom:14px;}
+  .subh{font-size:16px; margin:6px 0 10px; font-weight:700;}
+  .trendlabel{font-size:12px; color:var(--muted); font-weight:600; margin:8px 0 4px;}
+  canvas.trend{width:100%; height:92px; background:var(--card); border:1px solid var(--line); border-radius:12px; display:block;}
 
   /* Big call + confetti */
   #bigcall{position:fixed; top:14%; left:50%; transform:translateX(-50%) scale(.7); z-index:80;
@@ -222,6 +225,14 @@
     <div class="tip" id="statTip"></div>
     <div class="heatwrap"><canvas id="heatCanvas" width="280" height="280"></canvas></div>
     <div class="heatcap">Waar jouw darts landen (laatste worpen) · warmer = meer punten</div>
+
+    <h3 class="subh">📈 Voortgang</h3>
+    <div class="trendlabel">Gemiddelde per 3 (per dag)</div>
+    <canvas id="trendAvg" class="trend" width="300" height="92"></canvas>
+    <div class="trendlabel">Dubbel-% (per dag)</div>
+    <canvas id="trendDbl" class="trend" width="300" height="92"></canvas>
+    <div class="heatcap" id="trendCap"></div>
+
     <button class="btn ghost" id="resetStats" style="width:100%; color:#ff8a80;">Statistieken van deze speler wissen</button>
     <button class="btn ghost" id="closeStats" style="width:100%; margin-top:8px;">Sluiten</button>
   </div>
@@ -402,11 +413,22 @@ function recordDart(name,hit,x,y){
 }
 function recordTurn(name,total){ const st=statFor(name); if(total>st.best) st.best=total;
   if(total===180) st.t180++; else if(total>=100) st.t100++; }
+function recordGameHistory(){
+  const d=new Date().toISOString().slice(0,10);
+  G.players.forEach(p=>{ if(p.darts<3) return;
+    const st=statFor(p.name); if(!st.hist) st.hist=[];
+    const pts=settings.start - p.score;
+    st.hist.push({ d, ts:Date.now(), type:settings.start, darts:p.darts,
+      avg:+((pts/p.darts*3).toFixed(1)), dh:p.dblHit||0, da:p.dblAtt||0, won:!!p.finished });
+    if(st.hist.length>800) st.hist.shift();
+  });
+  saveStats();
+}
 
 /* ---------- Game state ---------- */
 let G=null, undoStack=[], pendingTimer=null, transition=false;
 function newGame(){
-  G={ players: settings.players.map(n=>({name:n, score:settings.start, darts:0, finished:false, place:0})),
+  G={ players: settings.players.map(n=>({name:n, score:settings.start, darts:0, finished:false, place:0, dblHit:0, dblAtt:0})),
     cur:0, turnStart:settings.start, thrown:[], over:false, finishers:0 };
   undoStack=[]; transition=false; if(pendingTimer){clearTimeout(pendingTimer);pendingTimer=null;}
   clearMarkers(); render();
@@ -452,12 +474,18 @@ function throwDart(hit, x, y){
   if(settings.doubleOut){ bust = newScore<0 || newScore===1 || (newScore===0 && !hit.isDouble); win = newScore===0 && hit.isDouble; }
   else { bust = newScore<0; win = newScore===0; }
 
+  // Double tracking: was this dart thrown while on a finishing double? (double-out only)
+  if(settings.doubleOut && (p.score===50 || (p.score>=2 && p.score<=40 && p.score%2===0))){
+    p.dblAtt=(p.dblAtt||0)+1; const sx=statFor(p.name); sx.dblAtt=(sx.dblAtt||0)+1;
+    if(win){ p.dblHit=(p.dblHit||0)+1; sx.dblHit=(sx.dblHit||0)+1; }
+  }
+
   if(win){
     p.score=0; p.finished=true; G.finishers++; p.place=G.finishers;
     recordTurn(p.name, G.turnStart); saveStats(); render();
     bigCall('GAME SHOT!'); sfxWin();
     speakFX(pick(['Game shot! ','Game, set en match! ','Uitgegooid! '])+'Gewonnen door '+p.name+'!',{pitch:1.2}); confettiBurst(180);
-    if(activePlayers()<=1) G.over=true;
+    if(activePlayers()<=1){ G.over=true; recordGameHistory(); }
     transition=true; pendingTimer=setTimeout(()=>{ transition=false; if(!G.over) advance(true); render(); }, 2000);
     return;
   }
@@ -572,19 +600,28 @@ function renderStats(){
   const grid=document.getElementById('statGrid');
   if(!st || st.darts===0){
     grid.innerHTML=''; document.getElementById('statTip').innerHTML='Nog geen worpen opgeslagen voor <b>'+esc(name)+'</b>. Speel een potje! 🎯';
-    drawHeat(null); return;
+    drawHeat(null); drawTrend(document.getElementById('trendAvg'),[]); drawTrend(document.getElementById('trendDbl'),[]);
+    document.getElementById('trendCap').textContent=''; return;
   }
   const avg=(st.sum/st.darts*3).toFixed(1);
   let favLbl='–', favN=0; for(const k in st.seg){ if(st.seg[k]>favN){favN=st.seg[k]; favLbl=k;} }
+  const dblPct = st.dblAtt? Math.round(st.dblHit/st.dblAtt*100) : null;
+  const hist = st.hist||[]; const games=hist.length;
   grid.innerHTML=`
     <div class="stat"><div class="v">${st.darts}</div><div class="k">darts gegooid</div></div>
     <div class="stat"><div class="v">${avg}</div><div class="k">gem. per 3 (ruw)</div></div>
     <div class="stat"><div class="v">${st.best}</div><div class="k">beste beurt</div></div>
-    <div class="stat"><div class="v">${st.t180}× / ${st.t100}×</div><div class="k">180's / 100+</div></div>
+    <div class="stat"><div class="v">${st.t180||0}× / ${st.t100||0}×</div><div class="k">180's / 100+</div></div>
+    <div class="stat"><div class="v">${dblPct!=null?dblPct+'%':'–'}</div><div class="k">dubbel-% (${st.dblHit||0}/${st.dblAtt||0})</div></div>
+    <div class="stat"><div class="v">${games}</div><div class="k">potjes gespeeld</div></div>
     <div class="stat"><div class="v">${favLbl}</div><div class="k">meest geraakt (${favN}×)</div></div>
     <div class="stat"><div class="v">${Math.round(hitRate(st))}%</div><div class="k">raak op bord</div></div>`;
   document.getElementById('statTip').innerHTML=computeTip(name, st);
   drawHeat(st);
+  const daily=dailyAgg(hist);
+  drawTrend(document.getElementById('trendAvg'), daily.map(d=>d.avg), '#4fd1c5');
+  drawTrend(document.getElementById('trendDbl'), daily.map(d=>d.dblPct), '#ffcf5a');
+  document.getElementById('trendCap').textContent = games? `${games} ${games===1?'potje':'potjes'} over ${daily.length} ${daily.length===1?'dag':'dagen'}` : 'Speel potjes uit om je voortgang te zien.';
 }
 function esc(s){ return (''+s).replace(/</g,'&lt;'); }
 function hitRate(st){ const miss=st.seg['Mis']||0; return st.darts? (st.darts-miss)/st.darts*100:0; }
@@ -612,6 +649,9 @@ function computeTip(name, st){
     if(sd<45) tips.push('Strakke groepering — mooie consistentie! 👌');
     else if(sd>95) tips.push('Je spreiding is groot — kies één vast richtpunt en herhaal exact dezelfde beweging.');
   }
+  if(st.dblAtt>=8){ const dp=st.dblHit/st.dblAtt*100;
+    if(dp<25) tips.push('Je <b>dubbels</b> vallen nog laag ('+Math.round(dp)+'%) — oefen gericht op D16 en D20 voor je finishes.');
+    else if(dp>45) tips.push('Sterk finishen — <b>'+Math.round(dp)+'%</b> van je dubbelkansen raak! 🎯'); }
   if(!tips.length) tips.push('Lekker bezig! Blijf op de <b>triple 20</b> mikken om je gemiddelde op te krikken.');
   return tips.slice(0,3).map(t=>'• '+t).join('<br>');
 }
@@ -633,6 +673,34 @@ function drawHeat(st){
     c.beginPath(); c.arc(mx,my,10,0,Math.PI*2); c.strokeStyle='#fff'; c.lineWidth=3; c.stroke();
   }
   c.restore();
+}
+function dailyAgg(hist){
+  const by={};
+  for(const h of hist){ const k=h.d; if(!by[k]) by[k]={d:k,darts:0,pts:0,dh:0,da:0,games:0};
+    const b=by[k]; b.darts+=h.darts; b.pts+=h.avg*h.darts/3; b.dh+=h.dh||0; b.da+=h.da||0; b.games++; }
+  return Object.values(by).sort((a,b)=>a.d<b.d?-1:1)
+    .map(b=>({ d:b.d, avg:b.darts?b.pts/b.darts*3:0, dblPct:b.da?b.dh/b.da*100:null, games:b.games }));
+}
+function drawTrend(cv, vals, color){
+  const c=cv.getContext('2d'), W=cv.width, H=cv.height, pad=10; c.clearRect(0,0,W,H);
+  const nums=vals.filter(v=>v!=null&&!isNaN(v));
+  if(nums.length===0){ c.fillStyle='#9aa2cf'; c.font='12px -apple-system,sans-serif'; c.textAlign='center'; c.textBaseline='middle';
+    c.fillText('nog geen data — speel een paar potjes', W/2, H/2); return; }
+  let mn=Math.min(...nums), mx=Math.max(...nums); if(mn===mx){ mn-=1; mx+=1; }
+  const n=vals.length;
+  const X=i=> pad + (n<=1?(W-2*pad)/2 : i*(W-2*pad)/(n-1));
+  const Y=v=> H-pad - (v-mn)/(mx-mn)*(H-2*pad);
+  c.strokeStyle='rgba(255,255,255,.08)'; c.lineWidth=1; c.beginPath(); c.moveTo(pad,H-pad); c.lineTo(W-pad,H-pad); c.stroke();
+  c.strokeStyle=color; c.lineWidth=2; c.beginPath(); let started=false;
+  vals.forEach((v,i)=>{ if(v==null||isNaN(v)) return; const x=X(i),y=Y(v); if(!started){c.moveTo(x,y);started=true;} else c.lineTo(x,y); });
+  c.stroke();
+  c.fillStyle=color; vals.forEach((v,i)=>{ if(v==null||isNaN(v)) return; c.beginPath(); c.arc(X(i),Y(v),2.6,0,Math.PI*2); c.fill(); });
+  const last=nums[nums.length-1];
+  c.fillStyle='#9aa2cf'; c.font='10px -apple-system,sans-serif'; c.textAlign='left';
+  c.textBaseline='top'; c.fillText(mx.toFixed(mx<20?1:0), pad, 2);
+  c.textBaseline='bottom'; c.fillText(mn.toFixed(mn<20?1:0), pad, H-3);
+  c.fillStyle=color; c.textAlign='right'; c.textBaseline='top'; c.font='bold 12px -apple-system,sans-serif';
+  c.fillText(last.toFixed(1), W-pad, 2);
 }
 
 /* ---------- Settings UI ---------- */
