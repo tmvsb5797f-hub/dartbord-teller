@@ -25,8 +25,9 @@
     color:var(--txt); -webkit-font-smoothing:antialiased; overflow-x:hidden;
     min-height:100vh;
   }
-  .app{max-width:520px; margin:0 auto; padding:14px 14px calc(24px + env(safe-area-inset-bottom)); }
-  header{display:flex; align-items:center; justify-content:space-between; margin:2px 0 12px;}
+  .app{max-width:520px; margin:0 auto;
+    padding:calc(6px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left)); }
+  header{display:flex; align-items:center; justify-content:space-between; margin:0 0 8px;}
   .brand{display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.3px; font-size:20px;}
   .brand .dot{width:26px;height:26px;border-radius:50%;
     background:conic-gradient(var(--red) 0 25%, var(--green) 25% 50%, var(--red) 50% 75%, var(--green) 75% 100%);
@@ -39,11 +40,11 @@
 
   /* Current player hero */
   .hero{background:linear-gradient(180deg,var(--card2),var(--card)); border:1px solid var(--line);
-    border-radius:22px; padding:14px 16px; box-shadow:0 10px 30px rgba(0,0,0,.35);}
+    border-radius:22px; padding:11px 16px; box-shadow:0 10px 30px rgba(0,0,0,.35);}
   .hero .top{display:flex; align-items:baseline; justify-content:space-between;}
   .hero .pname{font-weight:700; font-size:16px; color:var(--accent2);}
   .hero .avg{font-size:12px; color:var(--muted);}
-  .hero .score{font-size:74px; font-weight:800; line-height:.98; text-align:center; margin:2px 0 0;
+  .hero .score{font-size:clamp(48px,15vw,64px); font-weight:800; line-height:.98; text-align:center; margin:1px 0 0;
     font-variant-numeric:tabular-nums; letter-spacing:-1px;}
   .hero .score.flash{animation:pop .35s ease;}
   @keyframes pop{0%{transform:scale(1);}40%{transform:scale(1.12); color:var(--gold);}100%{transform:scale(1);}}
@@ -51,7 +52,7 @@
   .checkout.empty{color:var(--muted); font-weight:500;}
 
   /* Darts this turn */
-  .darts{display:flex; gap:8px; justify-content:center; margin-top:10px;}
+  .darts{display:flex; gap:8px; justify-content:center; margin-top:8px;}
   .slot{flex:1; max-width:110px; background:var(--bg1); border:1px solid var(--line); border-radius:14px;
     padding:8px 4px; text-align:center;}
   .slot .lbl{font-size:18px; font-weight:800;}
@@ -62,7 +63,7 @@
   .turntotal b{color:var(--txt); font-size:15px;}
 
   /* Board */
-  .boardwrap{margin:14px auto 6px; width:min(92vw,470px);}
+  .boardwrap{margin:6px auto 2px; width:min(70vw,340px);}
   svg#board{width:100%; height:auto; display:block; touch-action:manipulation; user-select:none;}
   svg#board text{pointer-events:none; font-weight:700;}
   .seg{cursor:pointer;}
@@ -70,9 +71,9 @@
   .hint{text-align:center; font-size:12px; color:var(--muted); margin-top:2px;}
 
   /* Controls */
-  .controls{display:grid; grid-template-columns:repeat(4,1fr); gap:9px; margin-top:12px;}
+  .controls{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:8px;}
   .btn{border:1px solid var(--line); background:var(--card); color:var(--txt); border-radius:14px;
-    padding:12px 6px; font-size:13px; font-weight:700; cursor:pointer; transition:.15s; text-align:center;}
+    padding:11px 6px; font-size:13px; font-weight:700; cursor:pointer; transition:.15s; text-align:center;}
   .btn:active{transform:scale(.95);}
   .btn.wide{grid-column:span 2;}
   .btn.primary{background:linear-gradient(180deg,#ff6f63,var(--accent)); border-color:#ff8073; color:#2a0d0a;}
@@ -80,7 +81,7 @@
   .btn[disabled]{opacity:.4; pointer-events:none;}
 
   /* players strip */
-  .strip{display:flex; gap:8px; overflow-x:auto; margin-top:14px; padding-bottom:4px; scrollbar-width:none;}
+  .strip{display:flex; gap:8px; overflow-x:auto; margin-top:9px; padding-bottom:4px; scrollbar-width:none;}
   .strip::-webkit-scrollbar{display:none;}
   .pcard{flex:0 0 auto; min-width:96px; background:var(--card); border:1px solid var(--line); border-radius:14px;
     padding:9px 12px;}
@@ -127,7 +128,7 @@
     75%{opacity:1;transform:translateX(-50%) scale(1);}
     100%{opacity:0;transform:translateX(-50%) scale(1);}}
   canvas#confetti{position:fixed; inset:0; z-index:70; pointer-events:none;}
-  .foot{text-align:center; color:var(--muted); font-size:11px; margin-top:18px;}
+  .foot{text-align:center; color:var(--muted); font-size:11px; margin-top:9px;}
 
   /* Camera mode */
   .camwrap{position:fixed; inset:0; z-index:66; background:#000; display:none; flex-direction:column;}
@@ -397,7 +398,11 @@ function loadVoices(){
     const prem=/premium|enhanced|verbeter|neural|siri/i.test(v.name);
     return `<option value="${voices.indexOf(v)}">${prem?'⭐ ':''}${v.name} (${v.lang})</option>`;
   }).join('')||'<option>Standaard</option>';
-  if((!chosenVoice || !voices.includes(chosenVoice)) && list.length){ chosenVoice=list[0]; sel.value=voices.indexOf(list[0]); }
+  if((!chosenVoice || !voices.includes(chosenVoice)) && list.length){
+    let pref=null;
+    if(settings._voiceName) pref=list.find(v=>v.name===settings._voiceName)||null;
+    chosenVoice=pref||list[0]; sel.value=voices.indexOf(chosenVoice);
+  }
 }
 function speak(text){
   if(!settings.voice || !window.speechSynthesis) return;
@@ -412,7 +417,18 @@ function speak(text){
 
 /* ---------- State ---------- */
 let settings={ start:501, doubleOut:true, voice:true, perDart:false,
-  players:['Speler 1','Speler 2'] };
+  players:['Speler 1','Speler 2'], _voiceName:null };
+function saveSettings(){ try{ localStorage.setItem('dartteller', JSON.stringify({
+  start:settings.start, doubleOut:settings.doubleOut, voice:settings.voice, perDart:settings.perDart,
+  players:settings.players, voiceName: chosenVoice?chosenVoice.name:settings._voiceName })); }catch(e){} }
+function loadSettings(){ try{ const s=JSON.parse(localStorage.getItem('dartteller')); if(!s) return;
+  if(Array.isArray(s.players)&&s.players.length) settings.players=s.players;
+  if(typeof s.start==='number') settings.start=s.start;
+  if(typeof s.doubleOut==='boolean') settings.doubleOut=s.doubleOut;
+  if(typeof s.voice==='boolean') settings.voice=s.voice;
+  if(typeof s.perDart==='boolean') settings.perDart=s.perDart;
+  settings._voiceName=s.voiceName||null;
+}catch(e){} }
 let G=null; // game state
 let undoStack=[];
 let pendingTimer=null;
@@ -664,8 +680,8 @@ function renderPlayersEdit(){
       (settings.players.length>1?`<button class="del" data-i="${i}">✕</button>`:'');
     list.appendChild(row);
   });
-  list.querySelectorAll('input').forEach(inp=>inp.addEventListener('input',e=>{ settings.players[+e.target.dataset.i]=e.target.value; }));
-  list.querySelectorAll('.del').forEach(b=>b.addEventListener('click',e=>{ settings.players.splice(+e.target.dataset.i,1); renderPlayersEdit(); }));
+  list.querySelectorAll('input').forEach(inp=>inp.addEventListener('input',e=>{ settings.players[+e.target.dataset.i]=e.target.value; saveSettings(); }));
+  list.querySelectorAll('.del').forEach(b=>b.addEventListener('click',e=>{ settings.players.splice(+e.target.dataset.i,1); renderPlayersEdit(); saveSettings(); }));
 }
 
 /* ---------- Wire up events ---------- */
@@ -680,24 +696,26 @@ document.getElementById('voiceBtn').addEventListener('click',()=>{
   settings.voice=!settings.voice;
   document.getElementById('voiceBtn').textContent=settings.voice?'🔊':'🔇';
   if(settings.voice) speak('stem aan');
+  saveSettings();
 });
 document.getElementById('startScoreChips').addEventListener('click',e=>{
   const ch=e.target.closest('.chip'); if(!ch) return;
-  settings.start=+ch.dataset.v; syncSettingsUI();
+  settings.start=+ch.dataset.v; syncSettingsUI(); saveSettings();
 });
 ['tgDoubleOut','tgVoice','tgPerDart'].forEach(id=>{
   document.getElementById(id).addEventListener('click',()=>{
     const key = id==='tgDoubleOut'?'doubleOut': id==='tgVoice'?'voice':'perDart';
     settings[key]=!settings[key]; setToggle(id,settings[key]);
     document.getElementById('voiceBtn').textContent=settings.voice?'🔊':'🔇';
+    saveSettings();
   });
 });
-document.getElementById('addPlayer').addEventListener('click',()=>{ settings.players.push('Speler '+(settings.players.length+1)); renderPlayersEdit(); });
-document.getElementById('voiceSelect').addEventListener('change',e=>{ chosenVoice=voices[+e.target.value]||null; });
+document.getElementById('addPlayer').addEventListener('click',()=>{ settings.players.push('Speler '+(settings.players.length+1)); renderPlayersEdit(); saveSettings(); });
+document.getElementById('voiceSelect').addEventListener('change',e=>{ chosenVoice=voices[+e.target.value]||null; saveSettings(); });
 document.getElementById('startGameBtn').addEventListener('click',()=>{
   settings.players=settings.players.map(n=>n.trim()).filter(n=>n.length);
   if(!settings.players.length) settings.players=['Speler 1'];
-  closeSettings(); newGame();
+  saveSettings(); closeSettings(); newGame();
   speak('nieuw spel, '+settings.players[0]+' begint');
 });
 settingsOverlay.addEventListener('click',e=>{ if(e.target===settingsOverlay) closeSettings(); });
@@ -920,6 +938,8 @@ window.addEventListener('resize',()=>{ if(camState!=='off') resizeCamCanvas(); }
 document.getElementById('testVoice').addEventListener('click',()=>{ const on=settings.voice; settings.voice=true; speak('honderdtachtig! game shot.'); settings.voice=on; });
 
 /* ---------- Init ---------- */
+loadSettings();
+document.getElementById('voiceBtn').textContent=settings.voice?'🔊':'🔇';
 buildBoard();
 if(window.speechSynthesis){ loadVoices(); window.speechSynthesis.onvoiceschanged=loadVoices; }
 newGame();
