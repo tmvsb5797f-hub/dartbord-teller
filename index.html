@@ -571,11 +571,13 @@ function matchConfig(){
 }
 function newGame(){
   const mc=matchConfig();
+  const rnd=Math.floor(Math.random()*settings.players.length);
   G={ players: settings.players.map(n=>({name:n, score:settings.start, darts:0, dblHit:0, dblAtt:0, legs:0, sets:0})),
-    cur:0, turnStart:settings.start, thrown:[], over:false, winnerIdx:-1, legStarter:0, legNo:1,
+    cur:rnd, turnStart:settings.start, thrown:[], over:false, winnerIdx:-1, legStarter:rnd, legNo:1,
     mode:mc.mode, legsTarget:mc.legsTarget||1, setsTarget:mc.setsTarget||1, legsPerSet:mc.legsPerSet||1 };
   undoStack=[]; transition=false; if(pendingTimer){clearTimeout(pendingTimer);pendingTimer=null;}
   clearMarkers(); render();
+  if(settings.voice && G.players.length>1) speakFX(G.players[rnd].name+' mag beginnen!',{pitch:1.1,rate:1});
 }
 function startLeg(){
   G.players.forEach(p=>{ p.score=settings.start; p.darts=0; p.dblHit=0; p.dblAtt=0; });
