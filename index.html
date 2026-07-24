@@ -218,6 +218,7 @@
       <div class="switch"><span>Dubbel-uit (finish op dubbel)</span><div class="toggle on" id="tgDoubleOut"></div></div>
       <div class="switch"><span>Stem voorlezen</span><div class="toggle on" id="tgVoice"></div></div>
       <div class="switch"><span>Geluidseffecten (tok, fanfare, juich)</span><div class="toggle on" id="tgSfx"></div></div>
+      <div class="switch"><span>Grappen &amp; trash-talk 😜</span><div class="toggle on" id="tgJokes"></div></div>
       <div class="switch"><span>Elke pijl uitspreken</span><div class="toggle" id="tgPerDart"></div></div>
     </div>
     <div class="field">
@@ -404,14 +405,19 @@ function sfxReward(kind){ if(!settings.sfx) return;
   else if(kind==='bull'){ arp([880,1320,1760],0,0.07,'triangle',0.16); cheer(0.05,0.25,0.1); } }
 function sfxTon(){ if(!settings.sfx) return; arp([523,784],0,0.1,'triangle',0.2); cheer(0.05,0.3,0.12); }
 function sfxBig(){ if(!settings.sfx) return; arp([523,659,880],0,0.1,'triangle',0.22); cheer(0.05,0.45,0.16); }
-function sfx180(){ if(!settings.sfx) return; arp([523,659,784,1047],0,0.12,'triangle',0.24); tone(1568,0.5,0.35,'triangle',0.22); cheer(0.1,0.9,0.2); }
-function sfxWin(){ if(!settings.sfx) return; arp([523,659,784,1047,1319],0,0.13,'square',0.2); tone(1047,0.7,0.5,'triangle',0.22); cheer(0.15,1.2,0.22); }
+function crowdRoar(t0,dur,peak){ noiseBurst(t0,dur,peak,700,'bandpass'); noiseBurst(t0+0.05,dur*0.8,peak*0.65,1700,'bandpass'); }
+function sfx180(){ if(!settings.sfx) return; arp([523,659,784,1047],0,0.12,'triangle',0.24); tone(1568,0.5,0.4,'triangle',0.22); crowdRoar(0.05,1.15,0.17); }
+function sfxWin(){ if(!settings.sfx) return; arp([523,659,784,1047,1319],0,0.13,'square',0.2); tone(1047,0.7,0.5,'triangle',0.22); crowdRoar(0.12,1.3,0.19); }
 function sfxBust(){ if(!settings.sfx) return; slide(400,120,0,0.42,'sawtooth',0.22); noiseBurst(0,0.3,0.08,600,'lowpass'); }
+function sfxSadTrombone(){ if(!settings.sfx) return;
+  tone(233,0,0.22,'sawtooth',0.15); tone(220,0.24,0.22,'sawtooth',0.15); tone(207,0.48,0.22,'sawtooth',0.15);
+  slide(196,138,0.72,0.6,'sawtooth',0.17); }
+function sfxWhiff(){ if(!settings.sfx) return; slide(1300,320,0,0.2,'sine',0.12); noiseBurst(0,0.16,0.05,3200,'highpass'); }
 
 /* ---------- Settings + stats persistence ---------- */
-let settings={ start:501, doubleOut:true, voice:true, sfx:true, perDart:false, matchFormat:'single', players:['Speler 1','Speler 2'], _voiceName:null };
+let settings={ start:501, doubleOut:true, voice:true, sfx:true, jokes:true, perDart:false, matchFormat:'single', players:['Speler 1','Speler 2'], _voiceName:null };
 function saveSettings(){ try{ localStorage.setItem('dartteller', JSON.stringify({
-  start:settings.start, doubleOut:settings.doubleOut, voice:settings.voice, sfx:settings.sfx, perDart:settings.perDart,
+  start:settings.start, doubleOut:settings.doubleOut, voice:settings.voice, sfx:settings.sfx, jokes:settings.jokes, perDart:settings.perDart,
   matchFormat:settings.matchFormat, players:settings.players, voiceName: chosenVoice?chosenVoice.name:settings._voiceName })); }catch(e){} }
 function loadSettings(){ try{ const s=JSON.parse(localStorage.getItem('dartteller')); if(!s) return;
   if(Array.isArray(s.players)&&s.players.length) settings.players=s.players;
@@ -419,6 +425,7 @@ function loadSettings(){ try{ const s=JSON.parse(localStorage.getItem('darttelle
   if(typeof s.doubleOut==='boolean') settings.doubleOut=s.doubleOut;
   if(typeof s.voice==='boolean') settings.voice=s.voice;
   if(typeof s.sfx==='boolean') settings.sfx=s.sfx;
+  if(typeof s.jokes==='boolean') settings.jokes=s.jokes;
   if(typeof s.perDart==='boolean') settings.perDart=s.perDart;
   if(typeof s.matchFormat==='string') settings.matchFormat=s.matchFormat;
   settings._voiceName=s.voiceName||null;
@@ -503,8 +510,8 @@ function throwDart(hit, x, y){
   p.darts++;
   recordDart(p.name, hit, x??null, y??null);
   if(x!=null) addMarker(x,y);
-  sfxHit();
-  if(hit.value>0){ if(hit.label[0]==='T') sfxReward('triple'); else if(hit.value===50) sfxReward('bull'); else if(hit.isDouble) sfxReward('double'); }
+  if(hit.value>0){ sfxHit(); if(hit.label[0]==='T') sfxReward('triple'); else if(hit.value===50) sfxReward('bull'); else if(hit.isDouble) sfxReward('double'); }
+  else sfxWhiff();
   if(settings.perDart && hit.value>=0) speak(hit.speak);
 
   const newScore=p.score - hit.value;
@@ -531,7 +538,7 @@ function throwDart(hit, x, y){
     if(matchWon){
       G.over=true; G.winnerIdx=G.players.indexOf(p); G.cur=G.winnerIdx; render();
       bigCall('GAME SHOT!'); sfxWin(); confettiBurst(200);
-      speakFX(pick(['Game, set en match! ','Gewonnen! '])+p.name+' wint'+(G.mode!=='single'?' de wedstrijd':'')+'!',{pitch:1.2});
+      speakFX((settings.jokes?pick(JOKE_WIN):pick(['Game, set en match! ','Gewonnen! ']))+p.name+' wint'+(G.mode!=='single'?' de wedstrijd':'')+'!',{pitch:1.2});
       transition=true; pendingTimer=setTimeout(()=>{ transition=false; render(); }, 2500);
       return;
     }
@@ -544,7 +551,9 @@ function throwDart(hit, x, y){
   }
   if(bust){
     p.score=G.turnStart; G.thrown.forEach(d=>d.bust=true); saveStats(); render();
-    bigCall('BUST'); sfxBust(); speakFX(pick(['Bust!','Helaas, bust!','Bust, jammer!']),{pitch:0.92});
+    bigCall('BUST');
+    if(settings.jokes){ sfxSadTrombone(); speakFX(pick(JOKE_BUST),{pitch:0.9}); }
+    else { sfxBust(); speakFX(pick(['Bust!','Helaas, bust!','Bust, jammer!']),{pitch:0.92}); }
     transition=true; pendingTimer=setTimeout(()=>{ transition=false; advance(true); render(); announceNext(); }, 1400);
     return;
   }
@@ -557,11 +566,17 @@ function throwDart(hit, x, y){
 }
 const REACT_HI=['geweldig! ','top! ','wat een worp! ','fantastisch! ','ongelofelijk! '];
 const REACT_TON=['ton! ','mooie score! ','lekker bezig! ','netjes! '];
+const JOKE_ZERO=['Loser! Nul punten!','Nul! Helemaal niks!','Air darts!','Nul komma nul, kansloos!','Oei, een dikke nul!','Nul! Heb je je bril op?','Nul punten, gênant hoor.','Zero! Amateur!','Helemaal niks, bakvis!'];
+const JOKE_BUST=['Bust! Da\'s zonde zeg.','Te gulzig! Bust!','Bust… echt een noob-move!','Oeps, bust! Rekenen is lastig hè?','Bust! Terug naar af.','Bust! Denk eens na, kampioen.'];
+const JOKE_180=['Honderd tachtig! Beest!','Maximum! Wat een monster!','Boem! Honderd tachtig!','Honderd... TACHTIG! Zalig!'];
+const JOKE_WIN=['Game shot! Jij bent de baas! ','Gewonnen! Reken maar! ','Match! De rest kan naar huis! ','Uitgegooid, wat een legende! '];
 function announceTurn(total){
-  if(total===180){ bigCall('180!'); sfx180(); confettiBurst(150); speakFX('honderd... tachtig!',{pitch:1.35}); }
+  if(total===180){ bigCall('180!'); sfx180(); confettiBurst(150); speakFX(settings.jokes?pick(JOKE_180):'honderd... tachtig!',{pitch:1.35}); }
   else if(total>=140){ bigCall(total+'!'); sfxBig(); confettiBurst(60); speakFX(pick(REACT_HI)+nlNum(total),{pitch:1.22,rate:1.03}); }
   else if(total>=100){ bigCall(total+'!'); sfxTon(); speakFX(pick(REACT_TON)+nlNum(total),{pitch:1.12}); }
-  else if(total===0){ speakFX(pick(['geen score','helaas, nul','jammer, niks']),{pitch:0.95}); }
+  else if(total===0){ bigCall('0');
+    if(settings.jokes){ sfxSadTrombone(); speakFX(pick(JOKE_ZERO),{pitch:0.9,rate:1.02}); }
+    else speakFX(pick(['geen score','helaas, nul','jammer, niks']),{pitch:0.95}); }
   else { speakFX(nlNum(total),{pitch: total>=60?1.08:1.0}); }
 }
 function announceNext(){ if(G.over) return; const nm=G.players[G.cur].name;
@@ -790,7 +805,7 @@ function syncSettingsUI(){
   document.querySelectorAll('#startScoreChips .chip').forEach(ch=>ch.classList.toggle('on', +ch.dataset.v===settings.start));
   document.querySelectorAll('#matchChips .chip').forEach(ch=>ch.classList.toggle('on', ch.dataset.m===settings.matchFormat));
   setToggle('tgDoubleOut',settings.doubleOut); setToggle('tgVoice',settings.voice);
-  setToggle('tgSfx',settings.sfx); setToggle('tgPerDart',settings.perDart);
+  setToggle('tgSfx',settings.sfx); setToggle('tgJokes',settings.jokes); setToggle('tgPerDart',settings.perDart);
   renderPlayersEdit();
 }
 function setToggle(id,on){ document.getElementById(id).classList.toggle('on',on); }
@@ -822,11 +837,12 @@ document.getElementById('startScoreChips').addEventListener('click',e=>{ const c
   settings.start=+ch.dataset.v; syncSettingsUI(); saveSettings(); });
 document.getElementById('matchChips').addEventListener('click',e=>{ const ch=e.target.closest('.chip'); if(!ch) return;
   settings.matchFormat=ch.dataset.m; syncSettingsUI(); saveSettings(); });
-['tgDoubleOut','tgVoice','tgSfx','tgPerDart'].forEach(id=>{ document.getElementById(id).addEventListener('click',()=>{
-  const key = id==='tgDoubleOut'?'doubleOut': id==='tgVoice'?'voice': id==='tgSfx'?'sfx':'perDart';
+['tgDoubleOut','tgVoice','tgSfx','tgJokes','tgPerDart'].forEach(id=>{ document.getElementById(id).addEventListener('click',()=>{
+  const key = id==='tgDoubleOut'?'doubleOut': id==='tgVoice'?'voice': id==='tgSfx'?'sfx': id==='tgJokes'?'jokes':'perDart';
   settings[key]=!settings[key]; setToggle(id,settings[key]);
   document.getElementById('voiceBtn').textContent=settings.voice?'🔊':'🔇'; saveSettings();
-  if(id==='tgSfx' && settings.sfx) sfxReward('triple'); }); });
+  if(id==='tgSfx' && settings.sfx) sfxReward('triple');
+  if(id==='tgJokes' && settings.jokes){ const v=settings.voice; settings.voice=true; sfxSadTrombone(); speakFX(pick(JOKE_ZERO),{pitch:0.9}); settings.voice=v; } }); });
 document.getElementById('addPlayer').addEventListener('click',()=>{ settings.players.push('Speler '+(settings.players.length+1)); renderPlayersEdit(); saveSettings(); });
 document.getElementById('voiceSelect').addEventListener('change',e=>{ chosenVoice=voices[+e.target.value]||null; saveSettings(); });
 document.getElementById('testVoice').addEventListener('click',()=>{ const v=settings.voice, s=settings.sfx; settings.voice=true; settings.sfx=true;
