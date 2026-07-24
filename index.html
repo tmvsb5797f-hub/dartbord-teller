@@ -236,6 +236,19 @@
       </div>
       <button class="btn ghost" id="testVoice" style="width:100%; margin-top:8px;">🎉 Test geluid & stem</button>
     </div>
+
+    <div class="field">
+      <label>🌐 Online stem — écht menselijk (ElevenLabs)</label>
+      <div class="switch"><span>Online stem gebruiken</span><div class="toggle" id="tgOnline"></div></div>
+      <input class="sel" id="onlineKey" type="password" autocomplete="off" placeholder="Jouw ElevenLabs API-sleutel" style="margin-top:8px"/>
+      <button class="btn ghost" id="onlineConnect" style="width:100%;margin-top:8px">🔌 Verbinden &amp; stemmen laden</button>
+      <select class="sel" id="onlineVoice" style="margin-top:8px;display:none"></select>
+      <div class="vq" id="onlineStatus"></div>
+      <div style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.55">
+        Maak gratis een sleutel op <b>elevenlabs.io</b> (± 10.000 tekens/maand gratis). De sleutel blijft <b>lokaal</b> op dit apparaat. Elke speler krijgt automatisch een eigen stem; herhaalde teksten worden gecachet (kosten geen quota). Offline valt 'ie terug op de systeemstem.
+      </div>
+    </div>
+
     <button class="btn primary" id="startGameBtn" style="width:100%">Nieuw spel starten</button>
     <button class="btn ghost" id="closeSettings" style="width:100%; margin-top:8px;">Sluiten</button>
   </div>
@@ -393,21 +406,73 @@ function applyChar(u, basePitch, baseRate, noChar){
   if(ch){ pitch=basePitch+(ch.pitch-1); rate=baseRate*ch.rate; if(ch.voice) voice=ch.voice; }
   u.pitch=Math.max(0.5,Math.min(2,pitch)); u.rate=Math.max(0.5,Math.min(1.6,rate)); if(voice) u.voice=voice;
 }
-function speak(text){
-  if(!settings.voice || !window.speechSynthesis) return;
-  try{ window.speechSynthesis.cancel();
-    const u=new SpeechSynthesisUtterance(text); u.lang='nl-NL'; applyChar(u, 1.0, settings.voiceRate||1);
-    window.speechSynthesis.speak(u);
-  }catch(e){}
-}
-function speakFX(text, opts){
-  if(!settings.voice || !window.speechSynthesis) return; opts=opts||{};
+function systemSpeak(text, opts){
+  if(!window.speechSynthesis) return; opts=opts||{};
   try{ if(!opts.queue) window.speechSynthesis.cancel();
     const u=new SpeechSynthesisUtterance(text); u.lang='nl-NL';
     applyChar(u, (opts.pitch!=null?opts.pitch:1.0), (opts.rate||1.0)*(settings.voiceRate||1), opts.noChar);
     window.speechSynthesis.speak(u);
   }catch(e){}
 }
+function speak(text){ if(!settings.voice) return;
+  if(onlineReady()){ ttsOnline(text, pickOnlineVoice(false), {}); return; }
+  systemSpeak(text, {}); }
+function speakFX(text, opts){ if(!settings.voice) return; opts=opts||{};
+  if(onlineReady()){ ttsOnline(text, pickOnlineVoice(opts.noChar), opts); return; }
+  systemSpeak(text, opts); }
+
+/* ---------- Online neural voice (optional, ElevenLabs) ---------- */
+let online={ enabled:false, key:'', defaultVoiceId:'', voices:[], playerVoiceIds:[] };
+const DEFAULT_VOICES=[{id:'pNInz6obpgDQGcFmaJgB',name:'Adam (m)'},{id:'EXAVITQu4vr4xnSDxMaL',name:'Bella (v)'},{id:'TxGEqnHWrfWFTfGW9XjX',name:'Josh (m)'},{id:'21m00Tcm4TlvDq8ikWAM',name:'Rachel (v)'}];
+function useDefaultVoices(){ online.voices=DEFAULT_VOICES.slice(); if(!online.defaultVoiceId) online.defaultVoiceId=DEFAULT_VOICES[0].id; online.playerVoiceIds=DEFAULT_VOICES.map(v=>v.id); saveOnline(); }
+const ttsMem=new Map(); let ttsSource=null;
+function saveOnline(){ try{ localStorage.setItem('dartteller_online', JSON.stringify({enabled:online.enabled,key:online.key,defaultVoiceId:online.defaultVoiceId,playerVoiceIds:online.playerVoiceIds})); }catch(e){} }
+function loadOnline(){ try{ const o=JSON.parse(localStorage.getItem('dartteller_online')); if(o){ online.enabled=!!o.enabled; online.key=o.key||''; online.defaultVoiceId=o.defaultVoiceId||''; online.playerVoiceIds=Array.isArray(o.playerVoiceIds)?o.playerVoiceIds:[]; } }catch(e){} }
+function onlineReady(){ return !!(online.enabled && online.key && (online.defaultVoiceId || online.playerVoiceIds.length)); }
+function pickOnlineVoice(noChar){
+  if(!noChar && settings.playerVoices && G && online.playerVoiceIds.length) return online.playerVoiceIds[G.cur % online.playerVoiceIds.length];
+  return online.defaultVoiceId || online.playerVoiceIds[0];
+}
+let _idb=null;
+function idbOpen(){ return new Promise(res=>{ if(_idb) return res(_idb); try{ const r=indexedDB.open('dartteller_tts',1);
+  r.onupgradeneeded=()=>r.result.createObjectStore('clips'); r.onsuccess=()=>{_idb=r.result;res(_idb);}; r.onerror=()=>res(null);}catch(e){res(null);} }); }
+function idbGet(k){ return new Promise(res=>{ idbOpen().then(db=>{ if(!db)return res(null); try{ const t=db.transaction('clips','readonly').objectStore('clips').get(k); t.onsuccess=()=>res(t.result||null); t.onerror=()=>res(null);}catch(e){res(null);} }); }); }
+function idbPut(k,v){ idbOpen().then(db=>{ if(!db)return; try{ db.transaction('clips','readwrite').objectStore('clips').put(v,k);}catch(e){} }); }
+async function ttsOnline(text, voiceId, opts){
+  opts=opts||{};
+  try{
+    if(!voiceId) throw new Error('geen stem');
+    const c=ac(); if(!c) throw new Error('geen audio');
+    const key=voiceId+'|'+text;
+    let buf=ttsMem.get(key);
+    if(!buf){
+      let bytes=await idbGet(key);
+      if(!bytes){
+        const resp=await fetch('https://api.elevenlabs.io/v1/text-to-speech/'+voiceId+'?output_format=mp3_44100_128',{
+          method:'POST', headers:{'xi-api-key':online.key,'Content-Type':'application/json'},
+          body:JSON.stringify({text, model_id:'eleven_multilingual_v2', voice_settings:{stability:0.45,similarity_boost:0.8,style:0.35,use_speaker_boost:true}})});
+        if(!resp.ok) throw new Error('tts '+resp.status);
+        bytes=await resp.arrayBuffer(); idbPut(key, bytes.slice(0));
+      }
+      buf=await c.decodeAudioData(bytes.slice(0)); ttsMem.set(key,buf);
+    }
+    if(ttsSource){ try{ttsSource.stop();}catch(e){} }
+    ttsSource=c.createBufferSource(); ttsSource.buffer=buf; ttsSource.connect(MASTER||c.destination); ttsSource.start();
+  }catch(e){ systemSpeak(text, opts); }
+}
+async function loadOnlineVoices(){
+  const r=await fetch('https://api.elevenlabs.io/v1/voices',{headers:{'xi-api-key':online.key}});
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const d=await r.json(); online.voices=(d.voices||[]).map(v=>({id:v.voice_id,name:v.name}));
+  if(!online.defaultVoiceId && online.voices[0]) online.defaultVoiceId=online.voices[0].id;
+  online.playerVoiceIds=online.voices.slice(0,4).map(v=>v.id); if(!online.playerVoiceIds.length && online.defaultVoiceId) online.playerVoiceIds=[online.defaultVoiceId];
+  saveOnline(); return online.voices;
+}
+function updateOnlineStatus(){ const st=document.getElementById('onlineStatus'); if(!st) return;
+  if(!online.enabled){ st.className='vq'; st.textContent=''; }
+  else if(!online.key){ st.className='vq'; st.textContent='Vul je API-sleutel in en verbind.'; }
+  else if(onlineReady()){ st.className='vq good'; st.textContent='✅ Online stem actief — spelers krijgen elk een eigen stem.'; }
+  else { st.className='vq'; st.textContent='Klik op “Verbinden” om stemmen te laden.'; } }
 function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
 
 /* ---------- Sound effects (Web Audio, offline) ---------- */
@@ -865,6 +930,10 @@ function syncSettingsUI(){
   setToggle('tgPlayerVoices',settings.playerVoices); setToggle('tgPerDart',settings.perDart);
   const sr=document.getElementById('slRate'); if(sr) sr.value=settings.voiceRate||1;
   updateVoiceQuality();
+  setToggle('tgOnline', online.enabled);
+  const ok=document.getElementById('onlineKey'); if(ok) ok.value=online.key||'';
+  const ov=document.getElementById('onlineVoice'); if(ov && online.voices.length){ ov.innerHTML=online.voices.map(v=>`<option value="${v.id}">${(v.name||'').replace(/</g,'&lt;')}</option>`).join(''); ov.value=online.defaultVoiceId; ov.style.display='block'; }
+  updateOnlineStatus();
   renderPlayersEdit();
 }
 function setToggle(id,on){ document.getElementById(id).classList.toggle('on',on); }
@@ -908,6 +977,27 @@ document.getElementById('voiceSelect').addEventListener('change',e=>{ chosenVoic
 document.getElementById('slRate').addEventListener('input',e=>{ settings.voiceRate=+e.target.value; });
 document.getElementById('slRate').addEventListener('change',e=>{ settings.voiceRate=+e.target.value; saveSettings();
   const v=settings.voice; settings.voice=true; speakFX('honderd tachtig',{pitch:1.1,noChar:true}); settings.voice=v; });
+document.getElementById('tgOnline').addEventListener('click',function(){ online.enabled=!online.enabled; this.classList.toggle('on',online.enabled); saveOnline(); updateOnlineStatus(); });
+document.getElementById('onlineKey').addEventListener('input',e=>{ online.key=e.target.value.trim(); saveOnline(); });
+async function testTts(){ try{ const vid=online.defaultVoiceId||online.playerVoiceIds[0]; if(!vid) return false;
+  const r=await fetch('https://api.elevenlabs.io/v1/text-to-speech/'+vid+'?output_format=mp3_44100_128',{method:'POST',headers:{'xi-api-key':online.key,'Content-Type':'application/json'},body:JSON.stringify({text:'test',model_id:'eleven_multilingual_v2'})});
+  return r.ok; }catch(e){ return false; } }
+document.getElementById('onlineConnect').addEventListener('click',async()=>{
+  const st=document.getElementById('onlineStatus'), sel=document.getElementById('onlineVoice');
+  online.key=(document.getElementById('onlineKey').value||'').trim(); saveOnline();
+  if(!online.key){ st.className='vq'; st.textContent='Vul eerst je API-sleutel in.'; return; }
+  st.className='vq'; st.textContent='Verbinden…';
+  let vs, usedDefault=false;
+  try{ vs=await loadOnlineVoices(); }
+  catch(err){ useDefaultVoices(); vs=online.voices; usedDefault=true; }
+  sel.innerHTML=vs.map(v=>`<option value="${v.id}">${(v.name||'').replace(/</g,'&lt;')}</option>`).join(''); sel.value=online.defaultVoiceId; sel.style.display='block';
+  if(!online.enabled){ online.enabled=true; setToggle('tgOnline',true); saveOnline(); }
+  st.className='vq'; st.textContent='Stem testen…';
+  const okTts=await testTts();
+  if(okTts){ st.className='vq good'; st.innerHTML='✅ Werkt! '+(usedDefault?'Standaardstemmen gebruikt (je eigen stemmen konden niet worden opgehaald).':vs.length+' stemmen geladen.')+' Elke speler krijgt een eigen stem.'; }
+  else { st.className='vq'; st.innerHTML='❌ Stem-generatie mislukte — je sleutel mist waarschijnlijk de <b>Text-to-Speech</b>-permissie. Maak op elevenlabs.io een nieuwe sleutel met <b>Text to Speech</b> (+ Voices Read).'; } });
+document.getElementById('onlineVoice').addEventListener('change',e=>{ online.defaultVoiceId=e.target.value; saveOnline();
+  if(onlineReady()) ttsOnline('honderd tachtig', online.defaultVoiceId, {noChar:true}); });
 document.getElementById('testVoice').addEventListener('click',()=>{ const v=settings.voice, s=settings.sfx; settings.voice=true; settings.sfx=true;
   bigCall('180!'); sfx180(); confettiBurst(80); speakFX('honderd... tachtig!',{pitch:1.35,noChar:true}); settings.voice=v; settings.sfx=s; });
 document.getElementById('startGameBtn').addEventListener('click',()=>{ settings.players=settings.players.map(n=>n.trim()).filter(n=>n.length);
@@ -945,7 +1035,7 @@ function setIcon(rel,href){ let l=document.querySelector('link[rel="'+rel+'"]');
 function setupLogo(){ try{ const url=makeLogo(180); const el=document.getElementById('logo'); if(el) el.src=url; setIcon('icon',url); setIcon('apple-touch-icon',url); }catch(e){} }
 
 /* ---------- Init ---------- */
-loadSettings(); loadStats();
+loadSettings(); loadStats(); loadOnline();
 document.getElementById('voiceBtn').textContent=settings.voice?'🔊':'🔇';
 buildBoard(); setupLogo();
 if(window.speechSynthesis){ loadVoices(); window.speechSynthesis.onvoiceschanged=loadVoices; }
