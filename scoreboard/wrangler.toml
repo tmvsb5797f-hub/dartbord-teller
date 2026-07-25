@@ -1,0 +1,7 @@
+name = "dart-scoreboard"
+main = "index.js"
+compatibility_date = "2024-01-01"
+
+[[kv_namespaces]]
+binding = "SCORES"
+id = "f8ff9428e0f24f4fbcf6bb2f8d930ec3"

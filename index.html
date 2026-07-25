@@ -180,7 +180,7 @@
   </div>
 
   <div class="strip" id="strip"></div>
-  <div class="foot">X01 · dubbel-uit · Nederlandse stem · werkt offline</div>
+  <div class="foot"><a href="https://dart-scoreboard.kerkapp.workers.dev" target="_blank" style="color:#4fd1c5;text-decoration:none">📺 Live Scorebord</a> · X01 · dubbel-uit · Nederlandse stem</div>
   <div class="credit">made by <b>Sem</b> 🎯</div>
 </div>
 
@@ -562,9 +562,18 @@ function recordLegHistory(){
 const SCOREBOARD_URL='https://dart-scoreboard.kerkapp.workers.dev';
 function syncScore(){
   if(!G) return;
+  const pStats=G.players.map(p=>{
+    const st=stats[p.name]; if(!st) return null;
+    const avg=st.darts>=3?(st.sum/st.darts*3).toFixed(1):'–';
+    let dblH=0,triH=0; for(const k in st.seg){ if(k[0]==='D'&&k!=='Mis') dblH+=st.seg[k]; if(k[0]==='T') triH+=st.seg[k]; }
+    if(st.seg&&st.seg['Bull']) dblH+=st.seg['Bull'];
+    const coPct=st.dblAtt?Math.round(st.dblHit/st.dblAtt*100):null;
+    const miss=st.seg?st.seg['Mis']||0:0; const raak=st.darts?Math.round((st.darts-miss)/st.darts*100):0;
+    return {avg,darts:st.darts,best:st.best,t180:st.t180||0,t100:st.t100||0,dblH,triH,coPct,coHit:st.dblHit||0,coAtt:st.dblAtt||0,raak,games:(st.hist||[]).length};
+  });
   try{ fetch(SCOREBOARD_URL+'/api/score',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({players:G.players,current:G.cur,start:settings.start,matchFormat:settings.matchFormat,
-      legNo:G.legNo,over:G.over,winnerIdx:G.winnerIdx,thrown:G.thrown})}).catch(()=>{}); }catch(e){}
+      legNo:G.legNo,over:G.over,winnerIdx:G.winnerIdx,thrown:G.thrown,stats:pStats})}).catch(()=>{}); }catch(e){}
 }
 
 /* ---------- Game state ---------- */
