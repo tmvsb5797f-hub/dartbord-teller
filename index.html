@@ -274,6 +274,7 @@
     <canvas id="trendDbl" class="trend" width="300" height="92"></canvas>
     <div class="heatcap" id="trendCap"></div>
 
+    <button class="btn" id="syncStatsBtn" style="width:100%; background:#1a3a38; color:#4fd1c5;">📺 Sync alle stats naar scorebord</button>
     <button class="btn ghost" id="resetStats" style="width:100%; color:#ff8a80;">Statistieken van deze speler wissen</button>
     <button class="btn ghost" id="closeStats" style="width:100%; margin-top:8px;">Sluiten</button>
   </div>
@@ -982,6 +983,25 @@ document.getElementById('closeStats').addEventListener('click',closeStats);
 document.getElementById('statPlayer').addEventListener('change',renderStats);
 document.getElementById('resetStats').addEventListener('click',()=>{ const n=document.getElementById('statPlayer').value;
   if(stats[n]){ delete stats[n]; saveStats(); renderStats(); } });
+document.getElementById('syncStatsBtn').addEventListener('click',()=>{
+  const btn=document.getElementById('syncStatsBtn');
+  const names=settings.players;
+  const pStats=names.map(name=>{
+    const st=stats[name]; if(!st) return null;
+    const avg=st.darts>=3?(st.sum/st.darts*3).toFixed(1):'–';
+    let dblH=0,triH=0; for(const k in st.seg){ if(k[0]==='D'&&k!=='Mis') dblH+=st.seg[k]; if(k[0]==='T') triH+=st.seg[k]; }
+    if(st.seg&&st.seg['Bull']) dblH+=st.seg['Bull'];
+    const coPct=st.dblAtt?Math.round(st.dblHit/st.dblAtt*100):null;
+    const miss=st.seg?st.seg['Mis']||0:0; const raak=st.darts?Math.round((st.darts-miss)/st.darts*100):0;
+    return {avg,darts:st.darts,best:st.best,t180:st.t180||0,t100:st.t100||0,dblH,triH,coPct,coHit:st.dblHit||0,coAtt:st.dblAtt||0,raak,games:(st.hist||[]).length};
+  });
+  const payload={players:names.map((n,i)=>({name:n,score:G?G.players[i]?.score||0:0,darts:G?G.players[i]?.darts||0:0,legs:G?G.players[i]?.legs||0:0,sets:G?G.players[i]?.sets||0:0})),
+    current:G?G.cur:0,start:settings.start,matchFormat:settings.matchFormat,legNo:G?G.legNo:1,over:G?G.over:false,winnerIdx:G?G.winnerIdx:-1,thrown:G?G.thrown:[],stats:pStats};
+  btn.textContent='⏳ Bezig...';
+  fetch(SCOREBOARD_URL+'/api/score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(r=>{btn.textContent=r.ok?'✅ Gesynchroniseerd!':'❌ Mislukt'; setTimeout(()=>{btn.textContent='📺 Sync alle stats naar scorebord';},2500);})
+    .catch(()=>{btn.textContent='❌ Geen verbinding'; setTimeout(()=>{btn.textContent='📺 Sync alle stats naar scorebord';},2500);});
+});
 document.getElementById('voiceBtn').addEventListener('click',()=>{ settings.voice=!settings.voice;
   document.getElementById('voiceBtn').textContent=settings.voice?'🔊':'🔇'; if(settings.voice) speak('stem aan'); saveSettings(); });
 document.getElementById('startScoreChips').addEventListener('click',e=>{ const ch=e.target.closest('.chip'); if(!ch) return;
