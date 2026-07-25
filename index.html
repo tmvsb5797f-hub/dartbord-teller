@@ -524,14 +524,11 @@ function sfxSadTrombone(){ if(!settings.sfx) return;
   slide(196,138,0.72,0.6,'sawtooth',0.17); }
 function sfxWhiff(){ if(!settings.sfx) return; slide(1300,320,0,0.2,'sine',0.12); noiseBurst(0,0.16,0.05,3200,'highpass'); }
 function sfxSuperMax(){ if(!settings.sfx) return;
-  tone(330,0,0.6,'sine',0.5);
-  const su=[659,784], per=[1047], max=[1319,1319,1319];
-  const line=[...su,...per,...max,0,...su,...su,...per,...max];
-  const step=0.14;
-  line.forEach((f,i)=>{ if(f) tone(f,i*step,step*1.3,'square',0.5); });
-  const end=line.length*step;
-  tone(1568,end,1.8,'triangle',0.45); tone(1047,end+0.1,1.5,'sine',0.4);
-  crowdRoar(0.1,end+2.5,0.45); cheer(end*0.5,2.0,0.35); cheer(end,2.0,0.3);
+  tone(659,0,0.18,'square',0.5); tone(784,0.16,0.18,'square',0.5);
+  tone(1047,0.34,0.22,'square',0.5);
+  tone(1319,0.58,0.16,'square',0.5); tone(1319,0.76,0.16,'square',0.5); tone(1319,0.94,0.3,'square',0.5);
+  tone(1568,1.3,1.5,'triangle',0.45);
+  crowdRoar(0.3,3.0,0.45); cheer(1.2,2.0,0.35);
 }
 function sfxHighCheckout(){ if(!settings.sfx) return;
   tone(330,0,0.5,'sine',0.45);
