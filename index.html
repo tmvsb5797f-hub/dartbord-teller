@@ -507,16 +507,16 @@ function sfxReward(kind){ if(!settings.sfx) return;
   if(kind==='triple') arp([660,880,1320],0,0.075,'triangle',0.16);
   else if(kind==='double') arp([660,990],0,0.08,'triangle',0.15);
   else if(kind==='bull'){ arp([880,1320,1760],0,0.07,'triangle',0.16); cheer(0.05,0.25,0.1); } }
-function sfxTon(){ if(!settings.sfx) return; arp([523,784],0,0.12,'triangle',0.35); cheer(0.05,0.4,0.2); }
-function sfxBig(){ if(!settings.sfx) return; tone(131,0,0.4,'sine',0.3); arp([523,659,880],0,0.12,'triangle',0.38); cheer(0.05,0.6,0.25); }
+function sfxTon(){ if(!settings.sfx) return; arp([523,784],0,0.12,'triangle',0.4); cheer(0.05,0.5,0.25); }
+function sfxBig(){ if(!settings.sfx) return; tone(330,0,0.4,'sine',0.4); arp([523,659,880],0,0.12,'triangle',0.45); cheer(0.05,0.7,0.3); }
 function crowdRoar(t0,dur,peak){ noiseBurst(t0,dur,peak,700,'bandpass'); noiseBurst(t0+0.05,dur*0.8,peak*0.65,1700,'bandpass'); }
-function sfx180(){ if(!settings.sfx) return; tone(131,0,0.5,'sine',0.4); arp([523,659,784,1047],0,0.13,'triangle',0.4); tone(1568,0.55,0.6,'triangle',0.35); crowdRoar(0.05,1.8,0.3); }
+function sfx180(){ if(!settings.sfx) return; tone(330,0,0.5,'sine',0.45); arp([523,659,784,1047],0,0.13,'triangle',0.45); tone(1568,0.55,0.7,'triangle',0.4); crowdRoar(0.05,1.8,0.35); }
 function sfxWin(){ if(!settings.sfx) return;
-  tone(131,0,0.6,'sine',0.5); tone(165,0,0.5,'sine',0.35);
-  arp([523,659,784],0,0.15,'triangle',0.45);
-  tone(1047,0.5,0.8,'triangle',0.4); tone(1319,0.65,0.7,'triangle',0.35);
-  tone(1568,0.9,1.0,'sine',0.3);
-  crowdRoar(0.1,2.0,0.35); cheer(0.8,1.5,0.25);
+  tone(330,0,0.6,'sine',0.5); tone(440,0,0.5,'sine',0.4);
+  arp([523,659,784,1047],0,0.18,'triangle',0.5);
+  tone(1047,0.75,1.0,'triangle',0.45); tone(1319,0.9,0.8,'sine',0.4);
+  tone(1568,1.1,1.2,'sine',0.35);
+  crowdRoar(0.1,2.5,0.4); cheer(1.0,1.8,0.3);
 }
 function sfxBust(){ if(!settings.sfx) return; slide(400,120,0,0.42,'sawtooth',0.22); noiseBurst(0,0.3,0.08,600,'lowpass'); }
 function sfxSadTrombone(){ if(!settings.sfx) return;
@@ -524,18 +524,18 @@ function sfxSadTrombone(){ if(!settings.sfx) return;
   slide(196,138,0.72,0.6,'sawtooth',0.17); }
 function sfxWhiff(){ if(!settings.sfx) return; slide(1300,320,0,0.2,'sine',0.12); noiseBurst(0,0.16,0.05,3200,'highpass'); }
 function sfxSuperMax(){ if(!settings.sfx) return;
-  tone(65,0,1.0,'sine',0.55); tone(131,0,0.8,'sine',0.4);
+  tone(330,0,0.8,'sine',0.5); tone(440,0.05,0.6,'sine',0.45);
   const melody=[523,523,784,784,1047,1047,784,0,659,784,1047,1319,1568];
-  melody.forEach((f,i)=>{ if(f) tone(f,i*0.14,0.18,'square',0.4); });
-  tone(1568,melody.length*0.14,1.2,'triangle',0.35);
-  tone(1047,melody.length*0.14+0.1,1.0,'triangle',0.3);
-  crowdRoar(0.15,3.0,0.4); cheer(0.8,2.0,0.3); cheer(1.8,1.5,0.25);
-  noiseBurst(0,0.08,0.2,100,'lowpass');
+  melody.forEach((f,i)=>{ if(f) tone(f,i*0.15,0.22,'square',0.5); });
+  const end=melody.length*0.15;
+  tone(1568,end,1.5,'triangle',0.45); tone(1047,end+0.1,1.2,'triangle',0.4);
+  crowdRoar(0.2,3.5,0.45); cheer(1.0,2.5,0.35); cheer(2.2,1.8,0.3);
+  noiseBurst(0,0.1,0.3,400,'lowpass');
 }
 function sfxHighCheckout(){ if(!settings.sfx) return;
-  tone(131,0,0.5,'sine',0.4);
-  arp([659,880,1047,1319,1568],0,0.12,'triangle',0.4);
-  tone(1568,0.65,0.8,'sine',0.35); crowdRoar(0.1,1.5,0.3);
+  tone(330,0,0.5,'sine',0.45);
+  arp([659,880,1047,1319,1568],0,0.12,'triangle',0.45);
+  tone(1568,0.65,0.8,'sine',0.4); crowdRoar(0.1,1.8,0.35);
 }
 
 /* ---------- Settings + stats persistence ---------- */
@@ -664,8 +664,8 @@ function throwDart(hit, x, y){
   else if(hit.value>0 && G.thrown.length<3) encourage(hit);
 
   if(G.players.length>1 && G.wasBehind){
-    const maxScore=Math.max(...G.players.map(q=>q.score));
-    G.players.forEach((q,i)=>{ if(q.score===maxScore && q.score<settings.start) G.wasBehind[i]=true; });
+    const scores=G.players.map(q=>q.score), minS=Math.min(...scores), maxS=Math.max(...scores);
+    if(maxS>minS) G.players.forEach((q,i)=>{ if(q.score===maxS) G.wasBehind[i]=true; });
   }
   const newScore=p.score - hit.value;
   let bust=false, win=false;
@@ -775,8 +775,8 @@ function announceNext(){ if(G.over) return; const nm=G.players[G.cur].name;
 function advance(clear){
   if(clear) clearMarkers(); G.thrown=[]; if(G.over) return;
   if(G.players.length>1 && G.wasBehind){
-    const maxScore=Math.max(...G.players.map(q=>q.score));
-    G.players.forEach((q,i)=>{ if(q.score===maxScore && q.score<settings.start) G.wasBehind[i]=true; });
+    const scores=G.players.map(q=>q.score), minS=Math.min(...scores), maxS=Math.max(...scores);
+    if(maxS>minS) G.players.forEach((q,i)=>{ if(q.score===maxS) G.wasBehind[i]=true; });
   }
   G.cur=(G.cur+1)%G.players.length; G.turnStart=G.players[G.cur].score;
 }
