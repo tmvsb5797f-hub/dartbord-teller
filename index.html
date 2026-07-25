@@ -524,13 +524,14 @@ function sfxSadTrombone(){ if(!settings.sfx) return;
   slide(196,138,0.72,0.6,'sawtooth',0.17); }
 function sfxWhiff(){ if(!settings.sfx) return; slide(1300,320,0,0.2,'sine',0.12); noiseBurst(0,0.16,0.05,3200,'highpass'); }
 function sfxSuperMax(){ if(!settings.sfx) return;
-  tone(330,0,0.8,'sine',0.5); tone(440,0.05,0.6,'sine',0.45);
-  const melody=[523,523,784,784,1047,1047,784,0,659,784,1047,1319,1568];
-  melody.forEach((f,i)=>{ if(f) tone(f,i*0.15,0.22,'square',0.5); });
-  const end=melody.length*0.15;
-  tone(1568,end,1.5,'triangle',0.45); tone(1047,end+0.1,1.2,'triangle',0.4);
-  crowdRoar(0.2,3.5,0.45); cheer(1.0,2.5,0.35); cheer(2.2,1.8,0.3);
-  noiseBurst(0,0.1,0.3,400,'lowpass');
+  tone(330,0,0.6,'sine',0.5);
+  const su=[659,784], per=[1047], max=[1319,1319,1319];
+  const line=[...su,...per,...max,0,...su,...su,...per,...max];
+  const step=0.14;
+  line.forEach((f,i)=>{ if(f) tone(f,i*step,step*1.3,'square',0.5); });
+  const end=line.length*step;
+  tone(1568,end,1.8,'triangle',0.45); tone(1047,end+0.1,1.5,'sine',0.4);
+  crowdRoar(0.1,end+2.5,0.45); cheer(end*0.5,2.0,0.35); cheer(end,2.0,0.3);
 }
 function sfxHighCheckout(){ if(!settings.sfx) return;
   tone(330,0,0.5,'sine',0.45);
@@ -665,7 +666,7 @@ function throwDart(hit, x, y){
 
   if(G.players.length>1 && G.wasBehind){
     const scores=G.players.map(q=>q.score), minS=Math.min(...scores), maxS=Math.max(...scores);
-    if(maxS>minS) G.players.forEach((q,i)=>{ if(q.score===maxS) G.wasBehind[i]=true; });
+    if(maxS>minS) G.players.forEach((q,i)=>{ if(q.score>minS) G.wasBehind[i]=true; });
   }
   const newScore=p.score - hit.value;
   let bust=false, win=false;
@@ -739,7 +740,7 @@ const JOKE_ZERO=['Nul punten! Mijn oma gooit beter!','Air darts! Ga lekker tenni
 const JOKE_BUST=['Bust! Kun je niet tellen óf niet gooien?','Bust, {n}! Wat een blunder.','Bust! Terug naar de kleuterschool.','Bust! Pijnlijk om aan te zien.','Bust! Denk je eigenlijk wel na?','Bust! Amateuristisch hoor, {n}.','Bust! Mijn oma rekent beter.','Bust! Hopeloze poging.','Bust! Ging dat expres zo dom?'];
 const JOKE_180=['Honderd tachtig! Wat een beest!','Maximum! Buig maar voor de baas!','Boem! Honderd tachtig, {n}!','Honderd... TACHTIG! Onmenselijk!','Maximum! De rest kan wel inpakken!'];
 const JOKE_WIN=['Game shot! {n} is de baas! ','Gewonnen! De rest mag janken. ','Match! {n} pakt de winst, de rest naar huis! ','Uitgegooid! Buigen voor {n}! ','Klaar! {n} stuurt de rest naar huis!','Boom! {n} maakt het af!','En dáár gaat ie! {n} wint!'];
-const JOKE_COMEBACK=['Wat een comeback! {n} uit het niets!','Van achterstand naar winst! {n} is niet te stoppen!','{n} stond achter en wint alsnog! Ongelofelijk!','Super {n}! Vanuit het niks naar de winst!','Dit is historisch! {n} draait het helemaal om!','Hoe dan?! {n} lag achter en wint!'];
+const JOKE_COMEBACK=['Super {n} {n} {n}! Wat een comeback!','En {n} pakt de winst vanuit het niets! Máx Verstappen-stijl!','{n} stond achter en wint alsnog! Simply lovely!','Vanuit P-laatste naar P1! {n} is de kampioen!','{n} draait het helemaal om! Dit is historisch!','Wat een inhaalrace van {n}! Ongelofelijk!','Super super {n}! Van achterstand naar de winst!','No no {n}, that was so not right! Oh wacht, {n} wint gewoon!'];
 const JOKE_HIGH_CO=['Wat een finish! {n} gooit em dicht met {s}!','Hoge checkout! {s} punten, {n} is klinisch!','Finish op {s}! De precision van {n}!'];
 const JOKE_DOMINATION=['{n} maakt gehakt van de rest!','Totale dominantie! {n} was onverslaanbaar!','{n} heeft de vloer aangeveegd met iedereen!','Geen schijn van kans voor de rest, {n} is oppermachtig!'];
 const JOKE_STREAK_ZERO=['{n} gooit weer niks! Is ie er wel?','Alweer nul! {n}, leef je nog?','Drie keer nul op rij! {n} staat te slapen.','Nog steeds nul, {n}! Ga even zitten.'];
@@ -776,7 +777,7 @@ function advance(clear){
   if(clear) clearMarkers(); G.thrown=[]; if(G.over) return;
   if(G.players.length>1 && G.wasBehind){
     const scores=G.players.map(q=>q.score), minS=Math.min(...scores), maxS=Math.max(...scores);
-    if(maxS>minS) G.players.forEach((q,i)=>{ if(q.score===maxS) G.wasBehind[i]=true; });
+    if(maxS>minS) G.players.forEach((q,i)=>{ if(q.score>minS) G.wasBehind[i]=true; });
   }
   G.cur=(G.cur+1)%G.players.length; G.turnStart=G.players[G.cur].score;
 }
