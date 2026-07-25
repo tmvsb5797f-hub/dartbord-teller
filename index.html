@@ -810,13 +810,16 @@ function renderStats(){
   const avg=(st.sum/st.darts*3).toFixed(1);
   let favLbl='–', favN=0; for(const k in st.seg){ if(st.seg[k]>favN){favN=st.seg[k]; favLbl=k;} }
   const dblPct = st.dblAtt? Math.round(st.dblHit/st.dblAtt*100) : null;
+  let dblHits=0,triHits=0; for(const k in st.seg){ if(k[0]==='D'&&k!=='Mis') dblHits+=st.seg[k]; if(k[0]==='T') triHits+=st.seg[k]; }
+  if(st.seg['Bull']) dblHits+=st.seg['Bull'];
   const hist = st.hist||[]; const games=hist.length;
   grid.innerHTML=`
     <div class="stat"><div class="v">${st.darts}</div><div class="k">darts gegooid</div></div>
     <div class="stat"><div class="v">${avg}</div><div class="k">gem. per 3 (ruw)</div></div>
     <div class="stat"><div class="v">${st.best}</div><div class="k">beste beurt</div></div>
     <div class="stat"><div class="v">${st.t180||0}× / ${st.t100||0}×</div><div class="k">180's / 100+</div></div>
-    <div class="stat"><div class="v">${dblPct!=null?dblPct+'%':'–'}</div><div class="k">dubbel-% (${st.dblHit||0}/${st.dblAtt||0})</div></div>
+    <div class="stat"><div class="v">${dblHits}× / ${triHits}×</div><div class="k">dubbels / triples geraakt</div></div>
+    <div class="stat"><div class="v">${dblPct!=null?dblPct+'%':'–'}</div><div class="k">checkout-% (${st.dblHit||0}/${st.dblAtt||0})</div></div>
     <div class="stat"><div class="v">${games}</div><div class="k">potjes gespeeld</div></div>
     <div class="stat"><div class="v">${favLbl}</div><div class="k">meest geraakt (${favN}×)</div></div>
     <div class="stat"><div class="v">${Math.round(hitRate(st))}%</div><div class="k">raak op bord</div></div>`;
