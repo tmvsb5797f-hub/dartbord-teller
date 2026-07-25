@@ -602,7 +602,8 @@ function newGame(){
   const rnd=Math.floor(Math.random()*settings.players.length);
   G={ players: settings.players.map(n=>({name:n, score:settings.start, darts:0, dblHit:0, dblAtt:0, legs:0, sets:0})),
     cur:rnd, turnStart:settings.start, thrown:[], over:false, winnerIdx:-1, legStarter:rnd, legNo:1,
-    mode:mc.mode, legsTarget:mc.legsTarget||1, setsTarget:mc.setsTarget||1, legsPerSet:mc.legsPerSet||1 };
+    mode:mc.mode, legsTarget:mc.legsTarget||1, setsTarget:mc.setsTarget||1, legsPerSet:mc.legsPerSet||1,
+    wasBehind:new Array(settings.players.length).fill(false) };
   undoStack=[]; transition=false; zeroStreaks={}; if(pendingTimer){clearTimeout(pendingTimer);pendingTimer=null;}
   clearMarkers(); render(); syncScore();
   if(settings.voice && G.players.length>1) speakFX(G.players[rnd].name+' mag beginnen!',{pitch:1.1,rate:1});
@@ -673,7 +674,8 @@ function throwDart(hit, x, y){
     else matchWon=true;
     saveStats();
     const checkoutScore=G.turnStart;
-    const wasComeback=G.players.some(q=>q!==p && q.score<G.turnStart);
+    const pi=G.players.indexOf(p);
+    const wasComeback=G.wasBehind&&G.wasBehind[pi]&&G.players.some(q=>q!==p&&q.score<=170);
     const isDomination=G.players.filter(q=>q!==p).every(q=>q.score>settings.start*0.5);
     if(matchWon){
       G.over=true; G.winnerIdx=G.players.indexOf(p); G.cur=G.winnerIdx; render(); syncScore();
@@ -757,6 +759,10 @@ function announceNext(){ if(G.over) return; const nm=G.players[G.cur].name;
   speakFX(pick([nm+', jouw beurt',nm+', gooien maar',nm]),{queue:true, pitch:1.05, rate:1.03}); }
 function advance(clear){
   if(clear) clearMarkers(); G.thrown=[]; if(G.over) return;
+  if(G.players.length>1 && G.wasBehind){
+    const maxScore=Math.max(...G.players.map(q=>q.score));
+    G.players.forEach((q,i)=>{ if(q.score===maxScore && q.score<settings.start) G.wasBehind[i]=true; });
+  }
   G.cur=(G.cur+1)%G.players.length; G.turnStart=G.players[G.cur].score;
 }
 function manualNext(){
