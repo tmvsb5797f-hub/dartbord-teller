@@ -518,7 +518,7 @@ function sfxSadTrombone(){ if(!settings.sfx) return;
 function sfxWhiff(){ if(!settings.sfx) return; slide(1300,320,0,0.2,'sine',0.12); noiseBurst(0,0.16,0.05,3200,'highpass'); }
 
 /* ---------- Settings + stats persistence ---------- */
-let settings={ start:501, doubleOut:true, voice:true, sfx:true, jokes:true, perDart:false, playerVoices:true, matchFormat:'single', voiceRate:1.0, players:['Speler 1','Speler 2'], _voiceName:null };
+let settings={ start:501, doubleOut:true, voice:true, sfx:true, jokes:true, perDart:false, playerVoices:true, matchFormat:'single', voiceRate:1.0, players:['Sem','Joël','Martijn'], _voiceName:null };
 function saveSettings(){ try{ localStorage.setItem('dartteller', JSON.stringify({
   start:settings.start, doubleOut:settings.doubleOut, voice:settings.voice, sfx:settings.sfx, jokes:settings.jokes, perDart:settings.perDart, playerVoices:settings.playerVoices,
   matchFormat:settings.matchFormat, voiceRate:settings.voiceRate, players:settings.players, voiceName: chosenVoice?chosenVoice.name:settings._voiceName })); }catch(e){} }
@@ -558,6 +558,15 @@ function recordLegHistory(){
   saveStats();
 }
 
+/* ---------- Live scorebord sync ---------- */
+const SCOREBOARD_URL='https://dart-scoreboard.kerkapp.workers.dev';
+function syncScore(){
+  if(!G) return;
+  try{ fetch(SCOREBOARD_URL+'/api/score',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({players:G.players,current:G.cur,start:settings.start,matchFormat:settings.matchFormat,
+      legNo:G.legNo,over:G.over,winnerIdx:G.winnerIdx,thrown:G.thrown})}).catch(()=>{}); }catch(e){}
+}
+
 /* ---------- Game state ---------- */
 let G=null, undoStack=[], pendingTimer=null, transition=false;
 function matchConfig(){
@@ -576,7 +585,7 @@ function newGame(){
     cur:rnd, turnStart:settings.start, thrown:[], over:false, winnerIdx:-1, legStarter:rnd, legNo:1,
     mode:mc.mode, legsTarget:mc.legsTarget||1, setsTarget:mc.setsTarget||1, legsPerSet:mc.legsPerSet||1 };
   undoStack=[]; transition=false; if(pendingTimer){clearTimeout(pendingTimer);pendingTimer=null;}
-  clearMarkers(); render();
+  clearMarkers(); render(); syncScore();
   if(settings.voice && G.players.length>1) speakFX(G.players[rnd].name+' mag beginnen!',{pitch:1.1,rate:1});
 }
 function startLeg(){
@@ -589,7 +598,7 @@ function pushUndo(){ undoStack.push(snapshot()); if(undoStack.length>60) undoSta
 function restore(s){ const o=JSON.parse(s); G.players=o.p; G.cur=o.cur; G.turnStart=o.ts; G.thrown=o.thr; G.over=o.over;
   G.winnerIdx=o.wi; G.legStarter=o.ls; G.legNo=o.ln; if(o.st) stats=o.st; }
 function undo(){ if(!undoStack.length) return; if(pendingTimer){clearTimeout(pendingTimer);pendingTimer=null;} transition=false;
-  restore(undoStack.pop()); redrawMarkers(); saveStats(); render(); }
+  restore(undoStack.pop()); redrawMarkers(); saveStats(); render(); syncScore(); }
 
 /* ---------- Markers ---------- */
 function addMarker(x,y){ const g=document.getElementById('markers'); if(!g) return;
@@ -645,34 +654,34 @@ function throwDart(hit, x, y){
     else matchWon=true;
     saveStats();
     if(matchWon){
-      G.over=true; G.winnerIdx=G.players.indexOf(p); G.cur=G.winnerIdx; render();
+      G.over=true; G.winnerIdx=G.players.indexOf(p); G.cur=G.winnerIdx; render(); syncScore();
       bigCall('GAME SHOT!'); sfxWin(); confettiBurst(200);
       if(settings.jokes) speakFX(jokeLine(JOKE_WIN, p.name),{pitch:1.2});
       else speakFX(pick(['Game, set en match! ','Gewonnen! '])+p.name+' wint'+(G.mode!=='single'?' de wedstrijd':'')+'!',{pitch:1.2});
-      transition=true; pendingTimer=setTimeout(()=>{ transition=false; render(); }, 2500);
+      transition=true; pendingTimer=setTimeout(()=>{ transition=false; render(); }, 4000);
       return;
     }
-    render();
+    render(); syncScore();
     if(setWon){ bigCall('SET!'); sfxWin(); confettiBurst(130); speakFX('Set gewonnen door '+p.name+'!',{pitch:1.18}); }
     else { bigCall('LEG!'); sfxBig(); confettiBurst(90); speakFX(pick(['Leg voor ','Leg gewonnen door '])+p.name+'!',{pitch:1.15}); }
     G.legStarter=(G.legStarter+1)%G.players.length; G.legNo++;
-    transition=true; pendingTimer=setTimeout(()=>{ transition=false; startLeg(); render(); announceNext(); }, 2400);
+    transition=true; pendingTimer=setTimeout(()=>{ transition=false; startLeg(); render(); announceNext(); }, 3500);
     return;
   }
   if(bust){
-    p.score=G.turnStart; G.thrown.forEach(d=>d.bust=true); saveStats(); render();
+    p.score=G.turnStart; G.thrown.forEach(d=>d.bust=true); saveStats(); render(); syncScore();
     bigCall('BUST');
     if(settings.jokes){ sfxSadTrombone(); speakFX(jokeLine(JOKE_BUST),{pitch:0.9}); }
     else { sfxBust(); speakFX(pick(['Bust!','Helaas, bust!','Bust, jammer!']),{pitch:0.92}); }
-    transition=true; pendingTimer=setTimeout(()=>{ transition=false; advance(true); render(); announceNext(); }, 1400);
+    transition=true; pendingTimer=setTimeout(()=>{ transition=false; advance(true); render(); announceNext(); }, 2500);
     return;
   }
   p.score=newScore;
   if(G.thrown.length>=3){
-    const total=G.turnStart - p.score; recordTurn(p.name, total); saveStats(); render();
+    const total=G.turnStart - p.score; recordTurn(p.name, total); saveStats(); render(); syncScore();
     announceTurn(total);
-    transition=true; pendingTimer=setTimeout(()=>{ transition=false; advance(true); render(); announceNext(); }, 1500);
-  } else render();
+    transition=true; pendingTimer=setTimeout(()=>{ transition=false; advance(true); render(); announceNext(); }, 2500);
+  } else { render(); syncScore(); }
 }
 const REACT_HI=['geweldig! ','top! ','wat een worp! ','fantastisch! ','ongelofelijk! '];
 const REACT_TON=['ton! ','mooie score! ','lekker bezig! ','netjes! '];
