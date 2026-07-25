@@ -517,6 +517,15 @@ function sfxSadTrombone(){ if(!settings.sfx) return;
   tone(233,0,0.22,'sawtooth',0.15); tone(220,0.24,0.22,'sawtooth',0.15); tone(207,0.48,0.22,'sawtooth',0.15);
   slide(196,138,0.72,0.6,'sawtooth',0.17); }
 function sfxWhiff(){ if(!settings.sfx) return; slide(1300,320,0,0.2,'sine',0.12); noiseBurst(0,0.16,0.05,3200,'highpass'); }
+function sfxSuperMax(){ if(!settings.sfx) return;
+  const n=[523,523,784,784,1047,1047,784,659,784,1047,1319];
+  n.forEach((f,i)=>tone(f,i*0.12,0.14,'square',0.18));
+  crowdRoar(0.2,2.0,0.22); cheer(1.0,1.2,0.18); noiseBurst(0,0.06,0.12,100,'lowpass');
+}
+function sfxHighCheckout(){ if(!settings.sfx) return;
+  arp([659,880,1047,1319,1568],0,0.1,'triangle',0.2);
+  tone(1568,0.55,0.5,'sine',0.18); crowdRoar(0.1,1.0,0.15);
+}
 
 /* ---------- Settings + stats persistence ---------- */
 let settings={ start:501, doubleOut:true, voice:true, sfx:true, jokes:true, perDart:false, playerVoices:true, matchFormat:'single', voiceRate:1.0, players:['Sem','Joël','Martijn'], _voiceName:null };
@@ -594,7 +603,7 @@ function newGame(){
   G={ players: settings.players.map(n=>({name:n, score:settings.start, darts:0, dblHit:0, dblAtt:0, legs:0, sets:0})),
     cur:rnd, turnStart:settings.start, thrown:[], over:false, winnerIdx:-1, legStarter:rnd, legNo:1,
     mode:mc.mode, legsTarget:mc.legsTarget||1, setsTarget:mc.setsTarget||1, legsPerSet:mc.legsPerSet||1 };
-  undoStack=[]; transition=false; if(pendingTimer){clearTimeout(pendingTimer);pendingTimer=null;}
+  undoStack=[]; transition=false; zeroStreaks={}; if(pendingTimer){clearTimeout(pendingTimer);pendingTimer=null;}
   clearMarkers(); render(); syncScore();
   if(settings.voice && G.players.length>1) speakFX(G.players[rnd].name+' mag beginnen!',{pitch:1.1,rate:1});
 }
@@ -663,11 +672,25 @@ function throwDart(hit, x, y){
     } else if(G.mode==='legs'){ if(p.legs>=G.legsTarget) matchWon=true; }
     else matchWon=true;
     saveStats();
+    const checkoutScore=G.turnStart;
+    const wasComeback=G.players.some(q=>q!==p && q.score<G.turnStart);
+    const isDomination=G.players.filter(q=>q!==p).every(q=>q.score>settings.start*0.5);
     if(matchWon){
       G.over=true; G.winnerIdx=G.players.indexOf(p); G.cur=G.winnerIdx; render(); syncScore();
-      bigCall('GAME SHOT!'); sfxWin(); confettiBurst(200);
-      if(settings.jokes) speakFX(jokeLine(JOKE_WIN, p.name),{pitch:1.2});
-      else speakFX(pick(['Game, set en match! ','Gewonnen! '])+p.name+' wint'+(G.mode!=='single'?' de wedstrijd':'')+'!',{pitch:1.2});
+      if(wasComeback && settings.jokes){
+        bigCall('COMEBACK!'); sfxSuperMax(); confettiBurst(300);
+        speakFX(jokeLine(JOKE_COMEBACK, p.name),{pitch:1.25,rate:1.05});
+      } else if(checkoutScore>=100 && settings.jokes){
+        bigCall(checkoutScore+' FINISH!'); sfxHighCheckout(); confettiBurst(250);
+        speakFX(jokeLine(JOKE_HIGH_CO, p.name, ''+checkoutScore),{pitch:1.22});
+      } else if(isDomination && settings.jokes && G.players.length>1){
+        bigCall('GAME SHOT!'); sfxWin(); confettiBurst(200);
+        speakFX(jokeLine(JOKE_DOMINATION, p.name),{pitch:1.2});
+      } else {
+        bigCall('GAME SHOT!'); sfxWin(); confettiBurst(200);
+        if(settings.jokes) speakFX(jokeLine(JOKE_WIN, p.name),{pitch:1.2});
+        else speakFX(pick(['Game, set en match! ','Gewonnen! '])+p.name+' wint'+(G.mode!=='single'?' de wedstrijd':'')+'!',{pitch:1.2});
+      }
       transition=true; pendingTimer=setTimeout(()=>{ transition=false; render(); }, 4000);
       return;
     }
@@ -698,8 +721,13 @@ const REACT_TON=['ton! ','mooie score! ','lekker bezig! ','netjes! '];
 const JOKE_ZERO=['Nul punten! Mijn oma gooit beter!','Air darts! Ga lekker tennissen.','Nul! Kun jij überhaupt wel gooien?','Helemaal niks! Schaam je diep, {n}.','Nul punten, {n}. Bedroevend gewoon.','Zero! Geef die pijlen aan iemand met talent.','Nul! Zelfs geblinddoekt doe je het beter.','Nul komma nul! Hopeloos.','Nul, {n}! Was dat expres zo slecht?','Nul punten! Terug naar de kleuterklas.','Niks! Mijn kat mikt scherper.','Nul! Dit is bijna knap zo waardeloos.'];
 const JOKE_BUST=['Bust! Kun je niet tellen óf niet gooien?','Bust, {n}! Wat een blunder.','Bust! Terug naar de kleuterschool.','Bust! Pijnlijk om aan te zien.','Bust! Denk je eigenlijk wel na?','Bust! Amateuristisch hoor, {n}.','Bust! Mijn oma rekent beter.','Bust! Hopeloze poging.','Bust! Ging dat expres zo dom?'];
 const JOKE_180=['Honderd tachtig! Wat een beest!','Maximum! Buig maar voor de baas!','Boem! Honderd tachtig, {n}!','Honderd... TACHTIG! Onmenselijk!','Maximum! De rest kan wel inpakken!'];
-const JOKE_WIN=['Game shot! {n} is de baas! ','Gewonnen! De rest mag janken. ','Match! {n} pakt de winst, de rest naar huis! ','Uitgegooid! Buigen voor {n}! '];
-function jokeLine(arr, name){ const nm=name||((G&&G.players[G.cur])?G.players[G.cur].name:''); return pick(arr).replace(/\{n\}/g, nm); }
+const JOKE_WIN=['Game shot! {n} is de baas! ','Gewonnen! De rest mag janken. ','Match! {n} pakt de winst, de rest naar huis! ','Uitgegooid! Buigen voor {n}! ','Klaar! {n} stuurt de rest naar huis!','Boom! {n} maakt het af!','En dáár gaat ie! {n} wint!'];
+const JOKE_COMEBACK=['Wat een comeback! {n} uit het niets!','Van achterstand naar winst! {n} is niet te stoppen!','{n} stond achter en wint alsnog! Ongelofelijk!','Super {n}! Vanuit het niks naar de winst!','Dit is historisch! {n} draait het helemaal om!','Hoe dan?! {n} lag achter en wint!'];
+const JOKE_HIGH_CO=['Wat een finish! {n} gooit em dicht met {s}!','Hoge checkout! {s} punten, {n} is klinisch!','Finish op {s}! De precision van {n}!'];
+const JOKE_DOMINATION=['{n} maakt gehakt van de rest!','Totale dominantie! {n} was onverslaanbaar!','{n} heeft de vloer aangeveegd met iedereen!','Geen schijn van kans voor de rest, {n} is oppermachtig!'];
+const JOKE_STREAK_ZERO=['{n} gooit weer niks! Is ie er wel?','Alweer nul! {n}, leef je nog?','Drie keer nul op rij! {n} staat te slapen.','Nog steeds nul, {n}! Ga even zitten.'];
+function jokeLine(arr, name, extra){ const nm=name||((G&&G.players[G.cur])?G.players[G.cur].name:''); return pick(arr).replace(/\{n\}/g, nm).replace(/\{s\}/g, extra||''); }
+let zeroStreaks={};
 const ENC_T20=['Pfew, lekker zeg!','Boem, triple twintig!','Zo ja, de max-route!','Heerlijk hoor!','Beuken!','Kassa, zestig!'];
 const ENC_BULL=['Bullseye! Scherp!','Recht in de roos!','Wat een oog!','Pang, bull!'];
 const ENC_TRIPLE=['Mooie triple!','Netjes hoor!','Lekker geraakt!','Zo mag ik het zien!'];
@@ -713,13 +741,17 @@ function encourage(hit){
   speakFX(pick(arr),{pitch:1.16, rate:1.05});
 }
 function announceTurn(total){
-  if(total===180){ bigCall('180!'); sfx180(); confettiBurst(150); speakFX(settings.jokes?jokeLine(JOKE_180):'honderd... tachtig!',{pitch:1.35}); }
-  else if(total>=140){ bigCall(total+'!'); sfxBig(); confettiBurst(60); speakFX(pick(REACT_HI)+nlNum(total),{pitch:1.22,rate:1.03}); }
-  else if(total>=100){ bigCall(total+'!'); sfxTon(); speakFX(pick(REACT_TON)+nlNum(total),{pitch:1.12}); }
+  const nm=G.players[G.cur].name;
+  if(total===180){ zeroStreaks[nm]=0; bigCall('180!'); sfx180(); confettiBurst(150); speakFX(settings.jokes?jokeLine(JOKE_180):'honderd... tachtig!',{pitch:1.35}); }
+  else if(total>=140){ zeroStreaks[nm]=0; bigCall(total+'!'); sfxBig(); confettiBurst(60); speakFX(pick(REACT_HI)+nlNum(total),{pitch:1.22,rate:1.03}); }
+  else if(total>=100){ zeroStreaks[nm]=0; bigCall(total+'!'); sfxTon(); speakFX(pick(REACT_TON)+nlNum(total),{pitch:1.12}); }
   else if(total===0){ bigCall('0');
-    if(settings.jokes){ sfxSadTrombone(); speakFX(jokeLine(JOKE_ZERO),{pitch:0.9,rate:1.02}); }
+    zeroStreaks[nm]=(zeroStreaks[nm]||0)+1;
+    if(settings.jokes && zeroStreaks[nm]>=3){ sfxSadTrombone(); speakFX(jokeLine(JOKE_STREAK_ZERO, nm),{pitch:0.82,rate:0.95}); }
+    else if(settings.jokes){ sfxSadTrombone(); speakFX(jokeLine(JOKE_ZERO, nm),{pitch:0.9,rate:1.02}); }
     else speakFX(pick(['geen score','helaas, nul','jammer, niks']),{pitch:0.95}); }
-  else { speakFX(nlNum(total),{pitch: total>=60?1.08:1.0}); }
+  else if(total<=20 && settings.jokes){ zeroStreaks[nm]=0; speakFX(pick([nlNum(total)+', tja','maar '+nlNum(total)+' puntjes','ach, '+nlNum(total)]),{pitch:0.95}); }
+  else { zeroStreaks[nm]=0; speakFX(nlNum(total),{pitch: total>=60?1.08:1.0}); }
 }
 function announceNext(){ if(G.over) return; const nm=G.players[G.cur].name;
   speakFX(pick([nm+', jouw beurt',nm+', gooien maar',nm]),{queue:true, pitch:1.05, rate:1.03}); }
